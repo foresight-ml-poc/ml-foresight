@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project-specific
+data/raw/signals_export_*.csv
+!data/raw/signals_export_sample.csv
+data/processed/
+models/*.pkl
+models/*.h5
+models/*.joblib
+!models/.gitkeep
+plots/*.png
+!plots/.gitkeep
+results/*.csv
+!results/.gitkeep
+logs/*
+!logs/.gitkeep
+.streamlit/
