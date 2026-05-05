@@ -73,9 +73,9 @@ MODELS = {
         "description": "Ensemble d'arbres, RandomizedSearchCV 5-fold, class_weight balanced.",
         "path": MODELS_DIR / "random_forest.pkl",
     },
-    "mlp": {
-        "name": "MLP (Keras)",
-        "description": "Réseau dense 64→32→1, EarlyStopping, dropout 0.3/0.2, sigmoid.",
-        "path": MODELS_DIR / "mlp.pkl",
+    "gradient_boosting": {
+        "name": "Gradient Boosting",
+        "description": "Boosting d'arbres séquentiel, RandomizedSearchCV 5-fold (substitut au MLP — TF hangait sur N=32 dans cet environnement).",
+        "path": MODELS_DIR / "gradient_boosting.pkl",
     },
 }
