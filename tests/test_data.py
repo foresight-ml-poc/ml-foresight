@@ -111,3 +111,25 @@ def test_feature_engineer_keeps_heuristic_factors(raw_df: pd.DataFrame) -> None:
     for f in ["freshness_factor", "source_weight", "confirmation_factor",
               "liquidity_factor", "spread_penalty", "time_to_resolution_factor"]:
         assert f in X.columns, f"Missing heuristic factor: {f}"
+
+
+from data import load_dataset_split
+
+
+def test_load_dataset_split_with_sample() -> None:
+    """End-to-end: load_dataset_split should run on the committed sample."""
+    from config import DATA_DIR
+    if not (DATA_DIR / "raw" / "signals_export_sample.csv").exists():
+        pytest.skip("Sample CSV not present.")
+
+    X_train, X_test, y_train, y_test = load_dataset_split()
+
+    assert len(X_train) > 0
+    assert len(X_test) > 0
+    assert X_train.shape[1] == X_test.shape[1]
+    assert len(X_train) == len(y_train)
+    assert len(X_test) == len(y_test)
+    assert set(np.unique(y_train)) <= {0, 1}
+    assert set(np.unique(y_test)) <= {0, 1}
+    # With 40 rows and 80/20 → 32/8
+    assert len(X_train) + len(X_test) == 40

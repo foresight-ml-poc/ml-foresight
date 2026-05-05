@@ -159,5 +159,57 @@ def _feature_engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
 
 
 def load_dataset_split() -> tuple[Any, Any, Any, Any]:
-    """Return (X_train, X_test, y_train, y_test). Implemented in Task 14."""
-    raise NotImplementedError("load_dataset_split is implemented in Task 14.")
+    """Return (X_train, X_test, y_train, y_test) — scaled.
+
+    Loading priority:
+      1. The latest dated export `data/raw/signals_export_<DATE>.csv`
+      2. Fallback: `data/raw/signals_export_sample.csv`
+
+    Pipeline:
+      load → _clean → _feature_engineer
+      → train_test_split (stratified, 80/20, seed=42)
+      → fit StandardScaler on X_train only → transform train + test
+      → save scaler.pkl + feature_order.pkl in models/
+
+    Returns numpy arrays (per Basile's contract). Feature column order is
+    persisted to models/feature_order.pkl for the backend repo.
+    """
+    raw_dir = DATA_DIR / "raw"
+    dated = sorted(raw_dir.glob("signals_export_20*.csv"))
+    candidates = [p for p in dated if p.name != "signals_export_sample.csv"]
+
+    if candidates:
+        csv_path = candidates[-1]
+    elif (raw_dir / "signals_export_sample.csv").exists():
+        csv_path = raw_dir / "signals_export_sample.csv"
+    else:
+        raise FileNotFoundError(
+            f"No CSV in {raw_dir}. Run scripts/export_from_foresight.py first."
+        )
+
+    print(f"[data] Loading: {csv_path.name}")
+    df = pd.read_csv(csv_path)
+
+    cleaned = _clean(df)
+    print(f"[data] After clean: {len(cleaned)} rows, "
+          f"target balance = {cleaned[TARGET_COLUMN].value_counts().to_dict()}")
+
+    X, y = _feature_engineer(cleaned)
+    print(f"[data] After feature engineering: X shape = {X.shape}")
+
+    # 80/20 split, stratified on y. With 40 samples → 32 train / 8 test.
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=SEED
+    )
+    print(f"[data] Train: {len(X_train)} rows | Test: {len(X_test)} rows")
+
+    scaler = StandardScaler()
+    X_train_arr = scaler.fit_transform(X_train)
+    X_test_arr = scaler.transform(X_test)
+
+    MODELS_DIR.mkdir(exist_ok=True)
+    joblib.dump(scaler, MODELS_DIR / "scaler.pkl")
+    joblib.dump(list(X.columns), MODELS_DIR / "feature_order.pkl")
+    print(f"[data] Saved scaler.pkl and feature_order.pkl in {MODELS_DIR}")
+
+    return X_train_arr, X_test_arr, y_train.to_numpy(), y_test.to_numpy()
