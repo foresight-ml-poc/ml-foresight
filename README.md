@@ -3,7 +3,9 @@
 > Machine learning POC pour le scoring des signaux Foresight.
 > Projet école Albert School · 2026-05.
 
-![Status](https://img.shields.io/badge/status-design--phase-orange) · Python 3.11 · Calqué sur [basile-desjuzeur/ml-poc-project](https://github.com/basile-desjuzeur/ml-poc-project)
+![Status](https://img.shields.io/badge/status-v1.0.0--released-brightgreen) · Python 3.11 · Calqué sur [basile-desjuzeur/ml-poc-project](https://github.com/basile-desjuzeur/ml-poc-project)
+
+📄 [**Design doc**](./docs/specs/2026-05-05-design.md) · 📋 [**Plan**](./docs/plans/2026-05-05-implementation-plan.md) · 📊 [**Rapport académique**](./docs/rapport.md) · 🚀 [**Release v1.0.0**](https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.0.0)
 
 ## Contexte
 
@@ -78,9 +80,18 @@ Voir le [design doc](./docs/specs/2026-05-05-design.md) pour le détail complet.
 
 ## Status
 
-🚧 **Phase de design.** Code à venir. Voir
-[`docs/specs/2026-05-05-design.md`](./docs/specs/2026-05-05-design.md) pour
-le plan complet.
+✅ **Pipeline ML complète et v1.0.0 publiée.** Voir le
+[rapport académique](./docs/rapport.md) pour les résultats détaillés et
+les limitations honnêtes (notamment N=40 et substitution MLP→GBM).
+
+**Résultats sur N=8 test (très bruités) :**
+
+| Modèle | Accuracy | F1 | ROC-AUC |
+|---|---|---|---|
+| Heuristique Foresight | 0.375 | 0.545 | 0.500 |
+| Logistic Regression | 0.250 | 0.000 | 0.200 |
+| **Random Forest (best)** | **0.625** | 0.000 | **0.500** |
+| Gradient Boosting | 0.500 | 0.000 | 0.400 |
 
 ## License
 
