@@ -92,7 +92,7 @@ def train_logreg(X_train, y_train, X_test, y_test) -> tuple:
     metrics = compute_metrics(y_test, y_pred)
     log.info(f"LogReg test metrics: {metrics}")
 
-    out = MODELS_DIR / "logreg.pkl"
+    out = MODELS_DIR / "logreg.joblib"
     joblib.dump(model, out)
     log.info(f"Saved {out}")
 
@@ -138,7 +138,7 @@ def train_random_forest(X_train, y_train, X_test, y_test) -> tuple:
     metrics = compute_metrics(y_test, y_pred)
     log.info(f"RF test metrics: {metrics}")
 
-    out = MODELS_DIR / "random_forest.pkl"
+    out = MODELS_DIR / "random_forest.joblib"
     joblib.dump(model, out)
     log.info(f"Saved {out}")
 
@@ -183,7 +183,7 @@ def train_gradient_boosting(X_train, y_train, X_test, y_test) -> tuple:
     metrics = compute_metrics(y_test, y_pred)
     log.info(f"GBM test metrics: {metrics}")
 
-    out = MODELS_DIR / "gradient_boosting.pkl"
+    out = MODELS_DIR / "gradient_boosting.joblib"
     joblib.dump(model, out)
     log.info(f"Saved {out}")
 
@@ -235,8 +235,8 @@ def select_best_and_write_card(all_metrics: dict, feature_order: list,
     log.info(f"Best model on test ROC-AUC: {best_key} "
              f"({all_metrics[best_key]['roc_auc']:.4f})")
 
-    src = MODELS_DIR / f"{best_key}.pkl"
-    dst = MODELS_DIR / "best_model.pkl"
+    src = MODELS_DIR / f"{best_key}.joblib"
+    dst = MODELS_DIR / "best_model.joblib"
     shutil.copy(src, dst)
     log.info(f"Copied {src.name} → {dst.name}")
 
@@ -244,7 +244,7 @@ def select_best_and_write_card(all_metrics: dict, feature_order: list,
         "model_version": "v1.0.0",
         "trained_at": datetime.now().isoformat(timespec="seconds"),
         "best_model_type": best_key,
-        "best_model_path": f"models/{best_key}.pkl",
+        "best_model_path": f"models/{best_key}.joblib",
         "feature_order": feature_order,
         "scaler_path": "models/scaler.pkl",
         "test_metrics": all_metrics,

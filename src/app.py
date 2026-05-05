@@ -238,8 +238,8 @@ def _tab_predict() -> None:
         st.info("Pas de model_card. Lance `python scripts/train.py` d'abord.")
         return
 
-    model_path = MODELS_DIR / "best_model.pkl"
-    scaler_path = MODELS_DIR / "scaler.pkl"
+    model_path = MODELS_DIR / "best_model.joblib"
+    scaler_path = MODELS_DIR / "scaler.pkl"  # joblib.dump uses .pkl by convention here
     if not (model_path.exists() and scaler_path.exists()):
         st.info("Modèle ou scaler manquant.")
         return
