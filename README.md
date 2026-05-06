@@ -12,7 +12,7 @@ Foresight émet des signaux notés 0–100 par une formule fixe. Sur 2 mois de p
 
 ## Résultats
 
-411 signaux entraînés (2026-04-12 → 2026-05-04), split 80/20, test set N=78.
+411 signaux entraînés (2026-04-12 → 2026-05-04), split 80/20, test set N=78. **6 modèles ML comparés** + heuristique baseline.
 
 ![ML vs Heuristique](plots/ml_vs_heuristic.png)
 
@@ -21,13 +21,16 @@ Foresight émet des signaux notés 0–100 par une formule fixe. Sur 2 mois de p
 | Heuristique Foresight | 0.526 | 0.575 | 0.533 |
 | Logistic Regression | 0.385 | 0.385 | 0.386 |
 | Random Forest | 0.538 | 0.438 | 0.531 |
-| **Gradient Boosting** | **0.577** | **0.492** | **0.570** |
+| **Gradient Boosting** ★ | 0.577 | 0.492 | **0.570** |
+| LightGBM | 0.513 | 0.472 | 0.510 |
+| XGBoost | 0.538 | 0.514 | 0.537 |
+| SVM (RBF) | 0.526 | 0.532 | 0.528 |
 
-GBM bat l'heuristique de **+3.7 pts ROC-AUC**. RF est à égalité, LogReg sous-performe (relation non-linéaire).
+**Gradient Boosting** bat l'heuristique de **+3.7 pts ROC-AUC**. XGBoost est juste devant l'heuristique (+0.4 pts). LightGBM et SVM sont à peu près au niveau de l'heuristique. LogReg sous-performe nettement (la relation est non-linéaire). On voit que les modèles d'arbres dominent sur ce type de données tabulaires.
 
 ![ROC curves](plots/roc_curves_comparison.png)
 
-![Feature importance RF](plots/feature_importance_rf.png)
+![Feature importance comparison](plots/feature_importance_comparison.png)
 
 ## Quickstart
 

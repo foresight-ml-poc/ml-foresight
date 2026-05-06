@@ -75,7 +75,22 @@ MODELS = {
     },
     "gradient_boosting": {
         "name": "Gradient Boosting",
-        "description": "Boosting d'arbres séquentiel, RandomizedSearchCV 5-fold (substitut au MLP — TF hangait sur N=32 dans cet environnement).",
+        "description": "Boosting d'arbres séquentiel sklearn, RandomizedSearchCV 5-fold.",
         "path": MODELS_DIR / "gradient_boosting.joblib",
+    },
+    "lightgbm": {
+        "name": "LightGBM",
+        "description": "Boosting léger et rapide, leaf-wise tree growth, RandomizedSearchCV 5-fold.",
+        "path": MODELS_DIR / "lightgbm.joblib",
+    },
+    "xgboost": {
+        "name": "XGBoost",
+        "description": "Boosting classique level-wise avec régularisation L1+L2, RandomizedSearchCV 5-fold.",
+        "path": MODELS_DIR / "xgboost.joblib",
+    },
+    "svm": {
+        "name": "SVM (RBF)",
+        "description": "Support Vector Machine kernel RBF, GridSearchCV 5-fold sur C et gamma.",
+        "path": MODELS_DIR / "svm.joblib",
     },
 }

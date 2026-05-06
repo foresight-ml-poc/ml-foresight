@@ -190,6 +190,114 @@ def train_gradient_boosting(X_train, y_train, X_test, y_test) -> tuple:
     return model, metrics
 
 
+# ---------- Model 4: LightGBM ----------
+
+def train_lightgbm(X_train, y_train, X_test, y_test) -> tuple:
+    """LightGBM — fastest of the gradient boosting libs, often best on tabular."""
+    import lightgbm as lgb
+    from sklearn.model_selection import RandomizedSearchCV
+
+    log.info("Training LightGBM with RandomizedSearchCV (20 iters, 5-fold)...")
+    distributions = {
+        "n_estimators": [50, 100, 200, 300],
+        "learning_rate": [0.01, 0.03, 0.05, 0.1, 0.3],
+        "num_leaves": [15, 31, 63],
+        "max_depth": [-1, 4, 8, 12],
+        "min_child_samples": [5, 10, 20],
+        "subsample": [0.7, 0.85, 1.0],
+    }
+    search = RandomizedSearchCV(
+        lgb.LGBMClassifier(class_weight="balanced", random_state=SEED, verbose=-1),
+        param_distributions=distributions,
+        n_iter=20, cv=5, scoring="roc_auc", n_jobs=-1, random_state=SEED,
+    )
+    search.fit(X_train, y_train)
+    log.info(f"LGBM best params: {search.best_params_}, best CV ROC-AUC: {search.best_score_:.4f}")
+
+    model = search.best_estimator_
+    metrics = compute_metrics(y_test, model.predict(X_test))
+    log.info(f"LGBM test metrics: {metrics}")
+
+    out = MODELS_DIR / "lightgbm.joblib"
+    joblib.dump(model, out)
+    log.info(f"Saved {out}")
+    return model, metrics
+
+
+# ---------- Model 5: XGBoost ----------
+
+def train_xgboost(X_train, y_train, X_test, y_test) -> tuple:
+    """XGBoost — the OG gradient boosting lib, typically performs similarly to LightGBM."""
+    import xgboost as xgb
+    from sklearn.model_selection import RandomizedSearchCV
+    from sklearn.utils.class_weight import compute_class_weight
+
+    classes = np.unique(y_train)
+    cw = compute_class_weight("balanced", classes=classes, y=y_train)
+    scale_pos_weight = float(cw[1] / cw[0])  # XGB uses scale_pos_weight not class_weight
+
+    log.info(f"Training XGBoost with RandomizedSearchCV (20 iters, 5-fold), scale_pos_weight={scale_pos_weight:.3f}...")
+    distributions = {
+        "n_estimators": [50, 100, 200, 300],
+        "learning_rate": [0.01, 0.03, 0.1, 0.3],
+        "max_depth": [3, 5, 8, 12],
+        "min_child_weight": [1, 3, 5],
+        "subsample": [0.7, 0.85, 1.0],
+        "colsample_bytree": [0.6, 0.8, 1.0],
+    }
+    search = RandomizedSearchCV(
+        xgb.XGBClassifier(
+            scale_pos_weight=scale_pos_weight,
+            random_state=SEED,
+            eval_metric="logloss",
+            tree_method="hist",
+        ),
+        param_distributions=distributions,
+        n_iter=20, cv=5, scoring="roc_auc", n_jobs=-1, random_state=SEED,
+    )
+    search.fit(X_train, y_train)
+    log.info(f"XGB best params: {search.best_params_}, best CV ROC-AUC: {search.best_score_:.4f}")
+
+    model = search.best_estimator_
+    metrics = compute_metrics(y_test, model.predict(X_test))
+    log.info(f"XGB test metrics: {metrics}")
+
+    out = MODELS_DIR / "xgboost.joblib"
+    joblib.dump(model, out)
+    log.info(f"Saved {out}")
+    return model, metrics
+
+
+# ---------- Model 6: SVM (non-linear, RBF kernel) ----------
+
+def train_svm(X_train, y_train, X_test, y_test) -> tuple:
+    """SVM with RBF kernel — classic non-linear baseline different from trees."""
+    from sklearn.svm import SVC
+    from sklearn.model_selection import GridSearchCV
+
+    log.info("Training SVM (RBF kernel) with GridSearchCV (5-fold)...")
+    grid = {
+        "C": [0.1, 1.0, 3.0, 10.0],
+        "gamma": ["scale", "auto", 0.01, 0.1],
+    }
+    search = GridSearchCV(
+        SVC(kernel="rbf", class_weight="balanced", probability=True, random_state=SEED),
+        param_grid=grid,
+        cv=5, scoring="roc_auc", n_jobs=-1,
+    )
+    search.fit(X_train, y_train)
+    log.info(f"SVM best params: {search.best_params_}, best CV ROC-AUC: {search.best_score_:.4f}")
+
+    model = search.best_estimator_
+    metrics = compute_metrics(y_test, model.predict(X_test))
+    log.info(f"SVM test metrics: {metrics}")
+
+    out = MODELS_DIR / "svm.joblib"
+    joblib.dump(model, out)
+    log.info(f"Saved {out}")
+    return model, metrics
+
+
 # ---------- Heuristic baseline (Foresight's current formula) ----------
 
 def evaluate_heuristic_baseline(y_test) -> dict:
@@ -315,29 +423,56 @@ def generate_plots(models: dict, X_test, y_test, all_metrics: dict,
         plt.close(fig)
         log.info(f"Wrote {out}")
 
-    # 4. ML vs Heuristic punchline
+    # 4. ML vs Heuristic punchline (handles any number of models)
     metric_keys = ["accuracy", "f1", "roc_auc"]
-    fig, ax = plt.subplots(figsize=(8, 5))
+    series = [("Heuristic", heuristic_metrics)] + [
+        (k, all_metrics[k]) for k in all_metrics.keys()
+    ]
+    n_series = len(series)
+    fig, ax = plt.subplots(figsize=(max(8, n_series * 1.3), 5))
     x = np.arange(len(metric_keys))
-    width = 0.18
-    ax.bar(x - 1.5 * width, [heuristic_metrics[k] for k in metric_keys],
-           width, label="Heuristic")
-    ax.bar(x - 0.5 * width, [all_metrics["logreg"][k] for k in metric_keys],
-           width, label="LogReg")
-    ax.bar(x + 0.5 * width, [all_metrics["random_forest"][k] for k in metric_keys],
-           width, label="RF")
-    ax.bar(x + 1.5 * width, [all_metrics["gradient_boosting"][k] for k in metric_keys],
-           width, label="GBM")
+    width = 0.85 / n_series
+    for i, (label, m) in enumerate(series):
+        offset = (i - (n_series - 1) / 2) * width
+        ax.bar(x + offset, [m[k] for k in metric_keys], width, label=label)
     ax.set_xticks(x)
     ax.set_xticklabels(metric_keys)
     ax.set_ylabel("Score")
-    ax.set_title("Heuristic vs ML Models — Test Set (N=8)")
-    ax.legend()
+    n_test = len(y_test)
+    ax.set_title(f"Heuristic vs ML Models — Test Set (N={n_test})")
+    ax.axhline(0.5, color="grey", linestyle="--", linewidth=0.5, alpha=0.5)
+    ax.legend(ncol=min(4, n_series), fontsize=9, loc="lower right")
     fig.tight_layout()
     out = PLOTS_DIR / "ml_vs_heuristic.png"
     fig.savefig(out, dpi=120)
     plt.close(fig)
     log.info(f"Wrote {out}")
+
+    # 5. Feature importance comparison across tree models (RF, GBM, LightGBM, XGBoost)
+    tree_models = {k: m for k, m in models.items()
+                   if hasattr(m, "feature_importances_")}
+    if len(tree_models) >= 2:
+        fig, ax = plt.subplots(figsize=(10, 7))
+        # rank features by avg importance across tree models
+        avg_imp = np.mean([m.feature_importances_ for m in tree_models.values()], axis=0)
+        idx = np.argsort(avg_imp)[::-1][:12]
+        n = len(tree_models)
+        bar_w = 0.85 / n
+        for i, (name, m) in enumerate(tree_models.items()):
+            offset = (i - (n - 1) / 2) * bar_w
+            ax.barh(np.arange(len(idx)) + offset,
+                    m.feature_importances_[idx][::-1],
+                    bar_w, label=name)
+        ax.set_yticks(np.arange(len(idx)))
+        ax.set_yticklabels([feature_order[i] for i in idx][::-1])
+        ax.set_xlabel("Importance")
+        ax.set_title(f"Feature importance — top 12 across {n} tree models")
+        ax.legend(fontsize=9, loc="lower right")
+        fig.tight_layout()
+        out = PLOTS_DIR / "feature_importance_comparison.png"
+        fig.savefig(out, dpi=120)
+        plt.close(fig)
+        log.info(f"Wrote {out}")
 
 
 def main() -> None:
@@ -356,6 +491,12 @@ def main() -> None:
     models["random_forest"], all_metrics["random_forest"] = train_random_forest(
         X_train, y_train, X_test, y_test)
     models["gradient_boosting"], all_metrics["gradient_boosting"] = train_gradient_boosting(
+        X_train, y_train, X_test, y_test)
+    models["lightgbm"], all_metrics["lightgbm"] = train_lightgbm(
+        X_train, y_train, X_test, y_test)
+    models["xgboost"], all_metrics["xgboost"] = train_xgboost(
+        X_train, y_train, X_test, y_test)
+    models["svm"], all_metrics["svm"] = train_svm(
         X_train, y_train, X_test, y_test)
 
     feature_order = joblib.load(MODELS_DIR / "feature_order.pkl")
