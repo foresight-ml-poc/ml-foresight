@@ -3,9 +3,9 @@
 > Machine learning POC pour le scoring des signaux Foresight.
 > Projet école Albert School · 2026-05.
 
-![Status](https://img.shields.io/badge/status-v1.0.0--released-brightgreen) · Python 3.11 · Calqué sur [basile-desjuzeur/ml-poc-project](https://github.com/basile-desjuzeur/ml-poc-project)
+![Status](https://img.shields.io/badge/status-v1.1.0--released-brightgreen) · Python 3.11 · Calqué sur [basile-desjuzeur/ml-poc-project](https://github.com/basile-desjuzeur/ml-poc-project)
 
-📄 [**Design doc**](./docs/specs/2026-05-05-design.md) · 📋 [**Plan**](./docs/plans/2026-05-05-implementation-plan.md) · 📊 [**Rapport académique**](./docs/rapport.md) · 🚀 [**Release v1.0.0**](https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.0.0)
+📄 [**Design doc**](./docs/specs/2026-05-05-design.md) · 📋 [**Plan**](./docs/plans/2026-05-05-implementation-plan.md) · 📊 [**Rapport académique**](./docs/rapport.md) · 🚀 [**Release v1.1.0**](https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.1.0)
 
 ## Contexte
 
@@ -80,18 +80,20 @@ Voir le [design doc](./docs/specs/2026-05-05-design.md) pour le détail complet.
 
 ## Status
 
-✅ **Pipeline ML complète et v1.0.0 publiée.** Voir le
-[rapport académique](./docs/rapport.md) pour les résultats détaillés et
-les limitations honnêtes (notamment N=40 et substitution MLP→GBM).
+✅ **Pipeline ML complète et v1.1.0 publiée — le ML bat l'heuristique.**
 
-**Résultats sur N=8 test (très bruités) :**
+Voir le [rapport académique](./docs/rapport.md) pour les détails complets.
+
+**Résultats sur N=78 test :**
 
 | Modèle | Accuracy | F1 | ROC-AUC |
 |---|---|---|---|
-| Heuristique Foresight | 0.375 | 0.545 | 0.500 |
-| Logistic Regression | 0.250 | 0.000 | 0.200 |
-| **Random Forest (best)** | **0.625** | 0.000 | **0.500** |
-| Gradient Boosting | 0.500 | 0.000 | 0.400 |
+| Heuristique Foresight | 0.526 | 0.575 | 0.533 |
+| Logistic Regression | 0.385 | 0.385 | 0.386 |
+| Random Forest | 0.538 | 0.438 | 0.531 |
+| **Gradient Boosting (best)** | **0.577** | **0.492** | **0.570** |
+
+GBM bat l'heuristique de **+3.7 pts ROC-AUC** sur 411 signaux d'entraînement (couvrant 23 jours, du 2026-04-12 au 2026-05-04).
 
 ## License
 

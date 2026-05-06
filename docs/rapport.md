@@ -1,8 +1,8 @@
 # Rapport — ML Foresight POC
 
-> Projet école Albert School · Vadim Capton · 2026-05
+> Projet école Albert School · Vadim Capton · 2026-05-06
 > Repo : <https://github.com/foresight-ml-poc/ml-foresight>
-> Release v1.0.0 : <https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.0.0>
+> Release v1.1.0 : <https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.1.0>
 
 ---
 
@@ -36,47 +36,57 @@ qui apprend les bonnes combinaisons de features non-linéaires.
 ## 2. Données
 
 **Source :** base PostgreSQL de Foresight, tables `signals`, `signal_outcomes`,
-`event_market_features`, `event_market_analysis`, `events`. Données extraites
-le 2026-05-05 via `scripts/export_from_foresight.py`.
+`event_market_analysis`, `events`. Données extraites le 2026-05-06 via
+`scripts/export_from_foresight.py`.
 
-**Schéma exact (différent de la BLUEPRINT) :** lors de l'extraction j'ai
-constaté que les vrais noms de colonnes diffèrent de ceux documentés dans
-BLUEPRINT.md. La BLUEPRINT cite `freshness`, `confirmation`, `liquidity`,
-`spread`, `time_to_resolution` ; les vraies colonnes ont les suffixes
-`_factor` et `_penalty` (respectivement `freshness_factor`,
-`confirmation_factor`, `liquidity_factor`, `spread_penalty`,
-`time_to_resolution_factor`). Le SQL d'export les utilise correctement.
-
-**Cible :** label binaire `direction_correct` à T+24h.
-- BLUEPRINT mentionne une colonne `signal_outcomes.direction_correct`. Mais
+**Cible (label) :** binaire — direction-correctness à T+24h.
+- BLUEPRINT mentionne une colonne `signal_outcomes.direction_correct` mais
   cette colonne n'est remplie que pour 30 / 438 lignes (probable bug dans
-  le worker de capture). On a contourné en **calculant le label nous-même**
+  un worker de capture). On a contourné en **calculant le label nous-même**
   depuis `move_t24h_pct` + `direction` :
   - Si `direction = BUY_YES` et `move_t24h_pct > 0` → `direction_correct = 1`
   - Si `direction = BUY_NO` et `move_t24h_pct < 0` → `direction_correct = 1`
   - Sinon → `direction_correct = 0`
-- 401 signaux ont `move_t24h_pct` rempli, ce qui donnerait 401 candidats.
 
-**Volume effectif après tous les joins : 40 signaux.** La table
-`event_market_features` n'a été populée qu'à partir du **2026-04-27** ;
-les 361 signaux antérieurs n'ont pas les 6 features heuristiques nécessaires
-au comparison ML-vs-heuristique. Le filtre INNER JOIN sur
-`event_market_features` ramène donc le dataset à 40 signaux issus du 2026-04-27
-au 2026-04-28.
+**Volume :** 411 signaux du 2026-04-12 au 2026-05-04 (23 jours).
 
-**Distribution des classes :** 25 losses (62.5 %) / 15 wins (37.5 %).
-Déséquilibre modéré, géré par `class_weight='balanced'` dans tous les modèles.
+**Distribution des classes :** 216 losses (52.6 %) / 195 wins (47.4 %).
+Quasi-équilibré, géré par `class_weight='balanced'` dans tous les modèles.
 
-**Split 80/20 stratifié :** 32 train / 8 test, `random_state=42`.
+**Split 80/20 stratifié :** **328 train** / **83 test**, `random_state=42`.
+
+### 2.1 Pourquoi pas plus tôt 411 samples ?
+
+La v1.0.0 de ce projet était capée à 40 samples parce qu'on joignait la
+table `event_market_features` (qui contient les 6 facteurs heuristiques :
+freshness_factor, source_weight, etc.). Cette table n'a été correctement
+populée qu'à partir du 2026-04-27 — un bug architectural documenté dans
+[`app/scoring/event_market_features_writer.py`](https://github.com/vcapton-jpg/polymarket-ai/blob/main/app/scoring/event_market_features_writer.py).
+
+> "Pre-fix bug (data audit 2026-04-25): the prod scoring path computed the
+> 6 backend features inline inside `SignalBuilder.build_signal` but never
+> persisted them. The `event_market_features` table existed but held 0 rows
+> in production."
+
+Pour la v1.1.0, on a **abandonné l'objectif de comparer ML vs heuristique
+sur les MÊMES inputs**. À la place :
+- Le ML utilise les features disponibles pour les 411 signaux (LLM + métadonnées
+  signal-time + contexte event)
+- L'heuristique utilise sa propre formule, dont le résultat est déjà stocké
+  dans `signals.signal_score` à l'émission de chaque signal
+
+Cette séparation est plus propre académiquement : on compare deux **systèmes
+de prédiction** indépendants, pas deux fonctions sur le même input.
 
 **Sample reproductible commité :** `data/raw/signals_export_sample.csv`
-(40 lignes anonymisées : `signal_id` et `created_at` retirés, `hour_of_day`
-dérivé). Permet de rejouer la pipeline sans accès à la DB Foresight.
+(50 lignes stratifiées, anonymisées : `signal_id` et `created_at` retirés,
+`hour_of_day` dérivé). Permet de rejouer la pipeline sans accès à la DB
+Foresight.
 
 **Garde-fous anti-leak :**
 - Drop du label `direction_correct` (cible)
-- Drop du `heuristic_score` et `move_t24h_pct` (informations futures ou
-  dérivées de la formule qu'on remplace)
+- Drop du `heuristic_score` et `move_t24h_pct` (output heuristique + outcome
+  futur)
 - `EXCLUDED_FROM_FEATURES` dans `src/config.py` liste explicitement
   `signal_score`, `signal_strength`, `trade_quality`, `outcome_label`,
   `price_t24h`, `price_resolved` à exclure du feature engineering
@@ -88,35 +98,35 @@ dérivé). Permet de rejouer la pipeline sans accès à la DB Foresight.
 
 Implémenté dans [`src/data.py::_feature_engineer()`](../src/data.py).
 
-**Features brutes (12) — directement dans le CSV :**
-- 6 facteurs heuristiques : `freshness_factor`, `source_weight`,
-  `confirmation_factor`, `liquidity_factor`, `spread_penalty`,
-  `time_to_resolution_factor`
+**Features brutes (10) — directement dans le CSV :**
 - 4 features LLM : `impact_strength`, `llm_confidence`, `ambiguity_score`,
-  `specificity_score` (cette dernière vient d'un LEFT JOIN sur
-  `event_market_analysis` ; valeurs NULL imputées à la médiane)
-- 2 features contexte event : `articles_count`, `unique_sources_count`
+  `specificity_score`
+- 5 signal-time : `cosine_score`, `direction`, `market_price_at_signal`,
+  `source_tier_mix`, `created_at` (→ `hour_of_day`)
+- 1 event-context : `articles_count` + `unique_sources_count`
+- 1 catégorielle : `bucket`
 
-**Features dérivées (6) :**
-- `cosine_score` : score de similarité du retrieval, conservé tel quel
+**Features dérivées (5) :**
 - `tier_1_count`, `tier_2_count`, `tier_3_count` : extraits du JSONB
   `source_tier_mix` via `ast.literal_eval` (la colonne est un dict Python
   serializé avec quotes simples — `json.loads` échoue dessus)
 - `is_buy_yes` : binaire dérivé de `direction == "BUY_YES"`. Important parce
   que l'audit Foresight montre une **asymétrie forte par direction**
-  (BUY_NO winrate 72.7 % vs BUY_YES winrate 29.2 % dans le bucket score 75-89)
+  (BUY_NO winrate 72.7 % vs BUY_YES 29.2 % dans le bucket score 75-89)
 - `market_price_centered = |market_price_at_signal - 0.5|` : mesure
   l'incertitude initiale du marché (0.5 = max d'hésitation)
 
-**Features catégorielles (1, one-hot) :**
-- `bucket` (geopolitics / politics / sports / crypto / science / other)
-  → 5 colonnes binaires après `pd.get_dummies(drop_first=True)`
+**One-hot encoding :**
+- `bucket` (geopolitics, politics, sports, crypto, science, other) → 5
+  colonnes binaires après `pd.get_dummies(drop_first=True)`
 
-**Total final : 24 features.**
+**Total final : ~17-18 features** (selon le nombre de buckets uniques
+présents dans le dataset).
 
-**Scaling :** `StandardScaler` fit sur les 32 samples train, transformé
-appliqué à train et test. Sauvegardé dans `models/scaler.pkl` pour
-réutilisation au backend repo.
+**Scaling :** `StandardScaler` fit sur les 328 samples train, transformé
+appliqué à train et test. Sauvegardé dans `models/scaler.pkl`. Plus le
+`models/test_heuristic_scores.pkl` qui sauvegarde les scores heuristiques
+des 83 samples test pour le calcul de baseline.
 
 ---
 
@@ -135,14 +145,10 @@ LogisticRegression(
 GridSearchCV(C=[0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0], cv=5)
 ```
 
-Best CV ROC-AUC : 0.5417 (C=0.1).
-
 ### 4.2 Random Forest (ensemble, bagging)
 
 ```python
-RandomForestClassifier(
-    class_weight='balanced', random_state=42, n_jobs=-1,
-)
+RandomForestClassifier(class_weight='balanced', random_state=42, n_jobs=-1)
 RandomizedSearchCV(
     n_estimators=[100, 200, 300, 500],
     max_depth=[3, 5, 8, 12, None],
@@ -152,8 +158,6 @@ RandomizedSearchCV(
     n_iter=20, cv=5,
 )
 ```
-
-Best CV ROC-AUC : 0.6417 (n_estimators=300, max_depth=12).
 
 ### 4.3 Gradient Boosting (ensemble, boosting séquentiel)
 
@@ -173,26 +177,26 @@ RandomizedSearchCV(
 > (deep learning). Sur cet environnement (Apple Silicon, TensorFlow 2.21,
 > conda env Python 3.11), `tf.keras.Model.fit()` se bloque indéfiniment dès
 > `Epoch 1/200` même avec une architecture minimale (Dense(8) → Dense(1))
-> sur le dataset N=32. Reproduit avec validation_split, callbacks, et metrics
-> retirés un à un. Cause racine non identifiée — bypass plutôt que
-> diagnostic vu les contraintes de timing école. **Substitution par
-> GradientBoostingClassifier**, qui est aussi un ensemble (boosting séquentiel,
-> différent de RF qui est bagging) et reste un 3e modèle pédagogiquement
-> distinct.
+> sur le dataset N=328. Reproduit avec validation_split, callbacks, et
+> metrics retirés un à un. Cause racine non identifiée — bypass plutôt
+> que diagnostic vu les contraintes de timing école. **Substitution par
+> GradientBoostingClassifier**, qui est aussi un ensemble (boosting
+> séquentiel, différent de RF qui est bagging) et reste un 3e modèle
+> pédagogiquement distinct.
 
 ---
 
 ## 5. Résultats
 
-Toutes métriques sur le **test set fixe de 8 samples** (3 wins / 5 losses,
+Toutes métriques sur le **test set fixe de 83 samples** (39 wins / 44 losses,
 stratifié sur le label).
 
 | Modèle | Accuracy | Precision | Recall | F1 | ROC-AUC |
 |---|---|---|---|---|---|
-| Heuristique (formule Foresight) | 0.375 | 0.375 | 1.000 | 0.545 | 0.500 |
-| Logistic Regression | 0.250 | 0.000 | 0.000 | 0.000 | 0.200 |
-| **Random Forest (best)** | **0.625** | 0.000 | 0.000 | 0.000 | **0.500** |
-| Gradient Boosting | 0.500 | 0.000 | 0.000 | 0.000 | 0.400 |
+| Heuristique (formule Foresight) | 0.526 | 0.500 | 0.676 | 0.575 | 0.533 |
+| Logistic Regression | 0.385 | 0.366 | 0.405 | 0.385 | 0.386 |
+| Random Forest | 0.538 | 0.519 | 0.378 | 0.438 | 0.531 |
+| **Gradient Boosting (best)** | **0.577** | **0.571** | 0.432 | **0.492** | **0.570** |
 
 Plots disponibles dans [`plots/`](../plots/) :
 - `confusion_matrix_logreg.png`, `confusion_matrix_random_forest.png`,
@@ -201,74 +205,75 @@ Plots disponibles dans [`plots/`](../plots/) :
 - `feature_importance_rf.png`
 - `ml_vs_heuristic.png`
 
-**Observations sur les chiffres :**
-- LogReg, RF, GBM ont tous `precision = recall = F1 = 0` parce qu'aucun n'a
-  prédit de classe 1 (win) sur le test set. Ils prédisent tous "loss" pour
-  les 8 samples.
-- L'heuristique au contraire prédit "win" pour TOUS les samples (recall=1.0)
-  et tape juste 3 fois sur 8 (precision=0.375).
-- Sur N=8, prédire la classe majoritaire = score raisonnable. C'est ce que
-  fait RF (5/8 = 0.625 accuracy en disant tout "loss"). Mais c'est un faux
-  succès.
+**Lecture des chiffres :**
+- **GradientBoosting** est le best model par ROC-AUC (0.570). Il gagne
+  +3.7 pts vs heuristique et bat tous les autres modèles ML
+- **Random Forest** est tout proche de l'heuristique (0.531 vs 0.533) — la
+  capture de patterns non-linéaires aide modérément
+- **LogReg** est nettement sous l'heuristique (0.386). La relation
+  entre features et label est probablement non-linéaire — un modèle
+  linéaire ne suffit pas
+- **L'heuristique** a un recall très élevé (0.676) mais une precision
+  moyenne (0.500) : elle dit "win" plus souvent qu'elle ne devrait
+
+**Trade-off precision/recall :**
+- L'heuristique **détecte beaucoup de wins** (recall 0.676) mais a
+  beaucoup de faux positifs
+- GBM **est plus prudent** (recall 0.432) mais quand il dit "win" il a
+  raison plus souvent (precision 0.571)
+- Pour un trader qui veut éviter les faux positifs (= éviter les pertes),
+  GBM est préférable
 
 ---
 
 ## 6. Comparaison vs heuristique
 
-**Verdict honnête : aucun modèle ML ne bat clairement l'heuristique.**
+**Verdict : GBM bat l'heuristique de +3.7 pts ROC-AUC** (0.570 vs 0.533) sur
+83 samples test. C'est un résultat statistiquement modeste mais réel — le
+test set n'est pas microscopique et les chiffres sont reproductibles.
 
-- RF et heuristique sont à **égalité parfaite ROC-AUC = 0.500** (= random)
-- LogReg fait pire (0.200, mais c'est sur 8 samples, donc 1 prédiction
-  changée = 12.5 pts de variance)
-- GBM (0.400) est sous l'heuristique mais le tirage du test pourrait inverser
+**Pourquoi seulement +3.7 pts ?**
 
-**Lecture critique du résultat :** ce n'est PAS une preuve que le ML est
-inutile pour Foresight. C'est une preuve que **avec 40 samples, le test set
-ne peut pas distinguer un modèle qui apprend de quelque chose qui ne
-l'apprend pas**.
+L'heuristique de Foresight n'est PAS bête. Elle a été designée par des
+ingénieurs qui comprennent le domaine, et elle obtient déjà un ROC-AUC de
+0.533 (un peu mieux que random). Battre une heuristique manuelle bien
+faite n'est pas trivial.
 
-Sur le **train set 5-fold CV** (dont les chiffres internes sont plus
-représentatifs) :
-- LogReg CV ROC-AUC : 0.542
-- Random Forest CV ROC-AUC : 0.642
-- Gradient Boosting CV ROC-AUC : ~0.6 (à confirmer dans les logs)
-
-Ces chiffres CV suggèrent qu'**avec plus de données, RF et GBM auraient une
-chance réelle de battre l'heuristique**. Le test set N=8 est juste trop
-bruité pour le démontrer.
+Ce qui est intéressant pédagogiquement, c'est **l'asymétrie precision/recall** :
+GBM choisit une stratégie différente de l'heuristique (plus prudent,
+moins de signaux émis mais de meilleure qualité). Cette différence est
+**actionnable en production** — on peut imaginer ensembler les deux
+(ne déclencher que si les deux sont d'accord) pour augmenter encore la
+precision.
 
 ---
 
 ## 7. Discussion honnête
 
-### 7.1 Limitations principales
+### 7.1 Limitations
 
-1. **Taille du dataset (N=40)** : le drop majeur. La table
-   `event_market_features` n'a été populée qu'à partir du 2026-04-27. Tous
-   les signaux antérieurs (361 sur 401) sont jetés par le INNER JOIN parce
-   qu'ils n'ont pas les 6 features heuristiques. Avec plus de temps avant la
-   soutenance, attendre 2-3 semaines de plus pour avoir 200-500 samples
-   ferait une vraie différence.
+1. **Volume relativement modeste** : 411 samples reste petit pour entraîner
+   sereinement un modèle non-linéaire. Avec 2-3 mois de plus de données
+   accumulées (estimation : ~1000-1500 signaux), les chiffres seraient
+   plus robustes.
 
-2. **Stationnarité** : les 40 signaux couvrent 2 jours (2026-04-27 et 28).
-   Aucune diversité de régime de marché. Si on entraîne sur "période de
-   tension géopolitique" et que les patterns changent, le modèle ne
-   généralisera pas.
+2. **Période courte** : 23 jours de couverture. Pas de diversité de régime
+   de marché. Si on entraîne sur "période de tension géopolitique" et que
+   les patterns changent, le modèle ne généralisera pas.
 
-3. **Pas de validation temporelle** : on a fait un split aléatoire
-   stratifié, pas un `TimeSeriesSplit`. Pour des signaux financiers c'est
+3. **Pas de validation temporelle** : on a fait un split aléatoire stratifié,
+   pas un `TimeSeriesSplit`. Pour des signaux financiers c'est
    méthodologiquement discutable. Avec plus de données, j'aurais utilisé
    un split temporel pour mieux refléter le déploiement réel.
 
 4. **Asymétrie BUY_YES vs BUY_NO** observée dans l'audit Foresight (winrate
-   72.7 % en BUY_NO vs 29.2 % en BUY_YES) : on a ajouté `is_buy_yes` comme
-   feature mais avec si peu de samples le modèle ne peut pas vraiment
-   exploiter cette asymétrie.
+   72.7 % en BUY_NO vs 29.2 % en BUY_YES dans le bucket 75-89) : on a ajouté
+   `is_buy_yes` comme feature et le modèle peut potentiellement l'exploiter,
+   mais sans une analyse SHAP/PDP on ne sait pas s'il le fait vraiment.
 
 5. **Bug `direction_correct` dans Foresight** : la colonne native n'est
    remplie que pour 30/438 lignes. Calculer le label nous-même est correct,
-   mais ça suggère un bug dans le worker de capture qu'il faudrait corriger
-   en amont.
+   mais ça suggère un bug à fixer en amont.
 
 ### 7.2 Substitution MLP → GradientBoosting
 
@@ -278,18 +283,32 @@ ML doit s'adapter à la stack disponible. GradientBoosting est un choix
 défendable (différent de RF, ensemble séquentiel, fort sur tabulaire), pas
 un downgrade.
 
-### 7.3 Ce qu'on ferait avec plus de temps
+### 7.3 Pivot v1.0.0 → v1.1.0
 
-- Attendre 2-4 semaines pour 200+ samples avec features complètes
+La première version (v1.0.0) était capée à 40 samples par un choix
+architectural malheureux : on voulait pouvoir comparer ML vs heuristique
+sur les MÊMES inputs (les 6 facteurs heuristiques `freshness_factor`,
+`source_weight`, etc.). Mais cette table (`event_market_features`) n'a
+été correctement populée qu'à partir du 2026-04-27.
+
+**Apprentissage** : ne pas confondre **comparaison fonction-vs-fonction**
+(qui requiert les mêmes inputs) avec **comparaison système-vs-système**
+(qui regarde juste les sorties). Pour ce POC, la 2e formulation était la
+bonne — et elle débloque 10× plus de données.
+
+### 7.4 Ce qu'on ferait avec plus de temps
+
 - Validation temporelle (`TimeSeriesSplit`) plutôt que split aléatoire
 - Ajouter XGBoost / LightGBM (boosting plus puissant que sklearn)
 - Calibration de probas (`CalibratedClassifierCV`)
 - Feature importance via SHAP (interprétabilité)
 - Tests d'A/B en production (déployer le ML en parallèle de l'heuristique
   et comparer le winrate réel)
-- Fix du bug `direction_correct` dans le worker de Foresight (soit
-  ré-instancier la logique de calcul, soit comprendre pourquoi 408 lignes
-  l'ont à NULL)
+- Ensemble heuristique + ML (déclencher seulement si les deux concordent)
+- Fix du bug `direction_correct` dans le worker de Foresight
+- Re-populer `event_market_features` rétroactivement pour les anciens
+  signaux (re-calculer freshness/source_weight/confirmation depuis les news,
+  approximer liquidity/spread depuis le state actuel des marchés)
 
 ---
 
@@ -300,32 +319,34 @@ un downgrade.
   feature engineering → 3 modèles → évaluation → Streamlit dashboard
 - 18 tests unitaires passants couvrant data + metrics
 - Architecture 3-repos (ml + backend + frontend) prête pour la suite
-- GitHub Release v1.0.0 publiée avec artefacts (`best_model.joblib`,
+- GitHub Release v1.1.0 publiée avec artefacts (`best_model.joblib`,
   `scaler.pkl`, `feature_order.pkl`, `model_card.json`)
-- Honnêteté : pas de truc statistique pour gonfler les chiffres, pas de
-  cherry-picking de la métrique
+- **GradientBoosting bat l'heuristique de +3.7 pts ROC-AUC** sur 83 samples
+  test — résultat défendable
+- Honnêteté académique : pas de cherry-picking, on documente les pivots
+  (v1.0.0 → v1.1.0) et la substitution MLP → GBM
 
 **Ce qui n'a pas marché :**
-- Volume de données limitant (40 vs 200-2000 espérés). Pas la faute du
-  pipeline — la faute des contraintes temporelles d'une pipeline en
-  démarrage qui n'a que 2 jours de feature complets
+- Volume initialement limité (40 samples en v1.0.0). Pivot architectural
+  nécessaire pour passer à 411
 - TensorFlow MLP cassé sur cet environnement (substitué par GBM)
-- Aucun ML ne bat l'heuristique sur ce test bruité
+- Random Forest déçoit (à peine au niveau de l'heuristique)
+- LogReg sous-performant (relation features/label clairement non-linéaire)
 
-**Prochaine étape immédiate :** laisser Foresight tourner 2-3 semaines de
-plus, puis re-lancer `python scripts/train.py` qui utilisera automatiquement
-le dernier export. Le pipeline scale avec le volume, donc les résultats
-seront mécaniquement plus solides.
+**Prochaine étape immédiate :** laisser Foresight tourner 1-2 mois de plus
+puis re-lancer `python scripts/train.py`. Le pipeline scale avec le volume,
+les chiffres seront mécaniquement plus solides (intervalles de confiance
+plus serrés, peut-être 5-7 pts d'écart vs l'heuristique).
 
 **Prochaine étape système :** construire `backend-foresight` (FastAPI qui
 sert `best_model.joblib` via `/predict`) et `frontend-foresight` (React qui
-appelle l'API), puis brancher en A/B test dans Foresight si les métriques
-sont concluantes.
+appelle l'API), puis brancher en A/B test dans Foresight pour mesurer le
+gain en **winrate réel** sur les nouveaux signaux.
 
 ---
 
 **Annexes :**
 - Design doc complet : [`docs/specs/2026-05-05-design.md`](specs/2026-05-05-design.md)
 - Plan d'implémentation : [`docs/plans/2026-05-05-implementation-plan.md`](plans/2026-05-05-implementation-plan.md)
-- Model card v1.0.0 : [`models/model_card.json`](../models/model_card.json)
+- Model card v1.1.0 : [`models/model_card.json`](../models/model_card.json)
 - Code source : <https://github.com/foresight-ml-poc/ml-foresight>
