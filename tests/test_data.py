@@ -19,8 +19,8 @@ def test_clean_drops_null_labels(raw_df: pd.DataFrame) -> None:
 
 def test_clean_drops_null_critical_features(raw_df: pd.DataFrame) -> None:
     df = raw_df.copy()
-    df.loc[0, "freshness_factor"] = None
-    df.loc[1, "liquidity_factor"] = None
+    df.loc[0, "impact_strength"] = None
+    df.loc[1, "llm_confidence"] = None
     cleaned = _clean(df)
     assert len(cleaned) == 2
 
@@ -104,13 +104,13 @@ def test_feature_engineer_keeps_cosine_score(raw_df: pd.DataFrame) -> None:
     assert "cosine_score" in X.columns
 
 
-def test_feature_engineer_keeps_heuristic_factors(raw_df: pd.DataFrame) -> None:
-    """The 6 heuristic factor features must be passed through unchanged."""
+def test_feature_engineer_keeps_llm_features(raw_df: pd.DataFrame) -> None:
+    """The 4 LLM features must be passed through unchanged."""
     cleaned = _clean(raw_df)
     X, _ = _feature_engineer(cleaned)
-    for f in ["freshness_factor", "source_weight", "confirmation_factor",
-              "liquidity_factor", "spread_penalty", "time_to_resolution_factor"]:
-        assert f in X.columns, f"Missing heuristic factor: {f}"
+    for f in ["impact_strength", "llm_confidence", "ambiguity_score",
+              "specificity_score"]:
+        assert f in X.columns, f"Missing LLM feature: {f}"
 
 
 from data import load_dataset_split
@@ -131,5 +131,6 @@ def test_load_dataset_split_with_sample() -> None:
     assert len(X_test) == len(y_test)
     assert set(np.unique(y_train)) <= {0, 1}
     assert set(np.unique(y_test)) <= {0, 1}
-    # With 40 rows and 80/20 → 32/8
-    assert len(X_train) + len(X_test) == 40
+    # Sample CSV is 40 rows; full export is ~411. Either way, 80/20 split.
+    total = len(X_train) + len(X_test)
+    assert total >= 30, f"Unexpectedly small dataset: {total}"

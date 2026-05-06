@@ -27,9 +27,8 @@ from config import (
 )
 
 CRITICAL_FEATURES = [
-    "freshness_factor", "source_weight", "confirmation_factor",
-    "liquidity_factor", "spread_penalty", "time_to_resolution_factor",
-    "impact_strength", "llm_confidence",
+    "impact_strength", "llm_confidence", "ambiguity_score",
+    "market_price_at_signal", "cosine_score",
 ]
 
 
@@ -197,11 +196,22 @@ def load_dataset_split() -> tuple[Any, Any, Any, Any]:
     X, y = _feature_engineer(cleaned)
     print(f"[data] After feature engineering: X shape = {X.shape}")
 
-    # 80/20 split, stratified on y. With 40 samples → 32 train / 8 test.
+    # 80/20 split, stratified on y. With ~411 samples → 328 train / 83 test.
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=SEED
     )
     print(f"[data] Train: {len(X_train)} rows | Test: {len(X_test)} rows")
+
+    # Save heuristic_score for the test set so train.py can compute the
+    # baseline directly from the persisted column (no recomputation needed).
+    if "heuristic_score" in cleaned.columns:
+        # Re-split the cleaned df with the same indices to get test heuristic
+        train_idx = X_train.index.tolist()
+        test_idx = X_test.index.tolist()
+        cleaned_aligned = cleaned.loc[X.index]
+        test_heuristic = cleaned_aligned.loc[test_idx, "heuristic_score"].to_numpy()
+        joblib.dump(test_heuristic, MODELS_DIR / "test_heuristic_scores.pkl")
+        print(f"[data] Saved test_heuristic_scores.pkl ({len(test_heuristic)} values)")
 
     scaler = StandardScaler()
     X_train_arr = scaler.fit_transform(X_train)

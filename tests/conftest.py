@@ -15,7 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 @pytest.fixture
 def raw_df() -> pd.DataFrame:
-    """Mini raw DataFrame matching the schema of data/raw/signals_export_sample.csv."""
+    """Mini raw DataFrame matching v1.1.0 schema (no event_market_features dep)."""
     return pd.DataFrame({
         "direction": ["BUY_YES", "BUY_NO", "BUY_YES", "BUY_NO"],
         "market_price_at_signal": [0.42, 0.78, 0.55, 0.18],
@@ -26,12 +26,6 @@ def raw_df() -> pd.DataFrame:
             "{'tier_1': 4, 'tier_2': 2}",
         ],
         "cosine_score": [0.62, 0.55, 0.71, 0.48],
-        "freshness_factor": [0.95, 0.7, 0.4, 0.85],
-        "source_weight": [0.8, 0.5, 0.6, 0.9],
-        "confirmation_factor": [1.0, 0.5, 0.7, 1.0],
-        "liquidity_factor": [0.6, 0.3, 0.4, 0.7],
-        "spread_penalty": [0.9, 0.5, 0.6, 0.85],
-        "time_to_resolution_factor": [0.5, 0.3, 0.6, 0.7],
         "impact_strength": [0.7, 0.4, 0.5, 0.8],
         "llm_confidence": [0.85, 0.6, 0.7, 0.9],
         "ambiguity_score": [0.2, 0.5, 0.4, 0.15],

@@ -1,16 +1,20 @@
 """Export historical signals + outcomes + features from Foresight DB to CSV.
 
-Real schema (verified 2026-05-05):
-  - event_market_features columns use suffix `_factor` and `_penalty`,
-    not the bare names from BLUEPRINT.md (which is outdated).
+Real schema (verified 2026-05-06):
   - The `direction_correct` column on signal_outcomes is sparse (only 30/438
     rows have it filled). We compute our own label from `move_t24h_pct` +
     `direction` instead, which gives ~401 labelled signals.
   - The `signals.below_threshold` column referenced in BLUEPRINT does not
     exist; the filter is dropped.
-  - Only ~40 signals have a row in event_market_features (populated from
-    2026-04-27 onward), so the inner join keeps the dataset to that 40.
-    Larger samples without features (older signals) are skipped.
+  - We previously joined `event_market_features` for the 6 heuristic factors,
+    but that table was only persisted from 2026-04-27 onward (a known bug
+    documented in app/scoring/event_market_features_writer.py). Joining it
+    capped the dataset to 40 samples.
+  - **v1.1.0 change**: drop the `event_market_features` join entirely. We
+    train on whatever features are available across all 401 signals (LLM
+    features from `event_market_analysis`, signal-time metadata, event
+    context). The heuristic baseline uses the already-computed
+    `signals.signal_score` column directly (no recomputation needed).
 
 Usage:
     Set FORESIGHT_DB_DSN in .env or .env.local, then run:
@@ -49,24 +53,16 @@ SELECT
     s.market_price_at_signal,
     s.source_tier_mix,
     s.cosine_score,
-    -- Heuristic factors (real column names verified 2026-05-05)
-    emf.freshness_factor,
-    emf.source_weight,
-    emf.confirmation_factor,
-    emf.liquidity_factor,
-    emf.spread_penalty,
-    emf.time_to_resolution_factor,
-    -- LLM features (event_market_features has them; double precision)
-    emf.impact_strength,
-    emf.llm_confidence,
-    emf.ambiguity_score,
-    -- Specificity is only in event_market_analysis (LEFT JOIN, may be NULL)
+    -- LLM features (always populated for all 401 analyzed signals)
+    ema.impact_strength,
+    ema.llm_confidence,
+    ema.ambiguity_score,
     ema.specificity_score,
     -- Event context
     e.bucket,
     e.articles_count,
     e.unique_sources_count,
-    -- Outcome
+    -- Outcome (training label source)
     so.move_t24h_pct,
     -- Computed label: direction-correctness at T+24h
     CASE
@@ -76,20 +72,19 @@ SELECT
             THEN (so.move_t24h_pct < 0)::int
         ELSE NULL
     END AS direction_correct,
-    -- Heuristic baseline (used in compare.py, NEVER as a feature)
+    -- Heuristic baseline (used by train.py for vs-heuristic comparison,
+    -- NEVER fed to ML as a feature — anti-leak).
     s.signal_score AS heuristic_score
 FROM signals s
 JOIN signal_outcomes so
     ON so.signal_id = s.id
-JOIN event_market_features emf
-    ON emf.event_id = s.event_id AND emf.market_id = s.market_id
-LEFT JOIN event_market_analysis ema
+JOIN event_market_analysis ema
     ON ema.event_id = s.event_id AND ema.market_id = s.market_id
 JOIN events e
     ON e.id = s.event_id
 WHERE so.move_t24h_pct IS NOT NULL
-  AND emf.freshness_factor IS NOT NULL
   AND s.direction IN ('BUY_YES', 'BUY_NO', 'YES', 'NO', 'UP', 'DOWN')
+  AND ema.impact_strength IS NOT NULL
 ORDER BY s.created_at;
 """
 

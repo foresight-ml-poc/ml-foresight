@@ -192,35 +192,24 @@ def train_gradient_boosting(X_train, y_train, X_test, y_test) -> tuple:
 
 # ---------- Heuristic baseline (Foresight's current formula) ----------
 
-def evaluate_heuristic_baseline(X_test, y_test, feature_order: list) -> dict:
-    """Recompute the Foresight heuristic on the test set and return metrics.
+def evaluate_heuristic_baseline(y_test) -> dict:
+    """Use the persisted Foresight signal_score directly as the heuristic baseline.
 
-    The heuristic uses 8 features. Test data here is post-scaling, so we
-    inverse_transform via the saved scaler to get original [0,1]-bounded values.
-    Threshold for binary label: heuristic_score > 65 → predicted class 1.
+    The heuristic_score column from the export holds the score Foresight
+    actually emitted at signal-time (already clipped to [0, 100]). We don't
+    recompute from features — that was the v1.0.0 approach which forced us
+    to keep the 6 heuristic factors as features (limiting us to 40 samples).
+    The persisted score is the ground truth of what Foresight predicted then.
+
+    Threshold > HEURISTIC_THRESHOLD (=65) → predicted class 1.
     """
-    import pandas as pd
-
-    scaler = joblib.load(MODELS_DIR / "scaler.pkl")
-    X_test_unscaled = scaler.inverse_transform(X_test)
-    df = pd.DataFrame(X_test_unscaled, columns=feature_order)
-
-    f = df["freshness_factor"]
-    sw = df["source_weight"]
-    conf = df["confirmation_factor"]
-    liq = df["liquidity_factor"]
-    sp = df["spread_penalty"]
-    ttr = df["time_to_resolution_factor"]
-    impact = df["impact_strength"]
-    llm_conf = df["llm_confidence"]
-
-    strength_base = 0.15 * f + 0.10 * sw + 0.15 * conf
-    llm_combined = 0.65 * impact + 0.35 * llm_conf
-    signal_strength = (strength_base + 0.60 * llm_combined).clip(0, 1) * 100
-    trade_quality = (0.40 * liq + 0.35 * sp + 0.25 * ttr).clip(0, 1) * 100
-    signal_score = (0.75 * signal_strength + 0.25 * trade_quality).clip(0, 100)
-
-    y_pred = (signal_score > HEURISTIC_THRESHOLD).astype(int).to_numpy()
+    test_heuristic = joblib.load(MODELS_DIR / "test_heuristic_scores.pkl")
+    if len(test_heuristic) != len(y_test):
+        raise ValueError(
+            f"Heuristic score count ({len(test_heuristic)}) does not match "
+            f"y_test count ({len(y_test)})."
+        )
+    y_pred = (test_heuristic > HEURISTIC_THRESHOLD).astype(int)
     return compute_metrics(y_test, y_pred)
 
 
@@ -371,7 +360,7 @@ def main() -> None:
 
     feature_order = joblib.load(MODELS_DIR / "feature_order.pkl")
 
-    heuristic_metrics = evaluate_heuristic_baseline(X_test, y_test, feature_order)
+    heuristic_metrics = evaluate_heuristic_baseline(y_test)
     log.info(f"Heuristic baseline metrics: {heuristic_metrics}")
 
     best_key = select_best_and_write_card(all_metrics, feature_order, heuristic_metrics)
