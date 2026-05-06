@@ -227,8 +227,7 @@ models/*.pkl
 models/*.h5
 models/*.joblib
 !models/.gitkeep
-plots/*.png
-!plots/.gitkeep
+# plots committed so they show in README
 results/*.csv
 !results/.gitkeep
 logs/*
