@@ -50,49 +50,67 @@ En v1.1.0, j'ai abandonné cet objectif. Le ML utilise les features dispo pour l
 
 ## Modèles
 
-3 modèles tunés via 5-fold CV sur le train set, sélection par ROC-AUC.
+6 modèles tunés via 5-fold CV sur le train set, sélection par ROC-AUC.
 
 - **Logistic Regression** : L2, GridSearchCV sur C ∈ [0.01, 10], class_weight balanced
 - **Random Forest** : RandomizedSearchCV (20 iters) sur n_estimators, max_depth, min_samples_*, max_features
-- **Gradient Boosting** : RandomizedSearchCV (20 iters) sur n_estimators, learning_rate, max_depth, subsample
+- **Gradient Boosting** (sklearn) : RandomizedSearchCV (20 iters)
+- **LightGBM** : leaf-wise boosting, RandomizedSearchCV (20 iters)
+- **XGBoost** : level-wise boosting régularisé, RandomizedSearchCV (20 iters)
+- **SVM** : kernel RBF, GridSearchCV sur C et gamma
 
-> Le 3e modèle prévu initialement était un MLP Keras. `tf.keras.fit()` se bloquait indéfiniment sur cet env (Apple Silicon, TF 2.21). Bypass plutôt que diagnostic vu le timing école — substitué par GradientBoosting, qui est aussi un ensemble (boosting séquentiel, différent de RF qui est bagging).
+> Le 3e modèle prévu initialement était un MLP Keras. `tf.keras.fit()` se bloquait indéfiniment sur cet env (Apple Silicon, TF 2.21). Bypass plutôt que diagnostic — substitué par GradientBoosting, puis on a ajouté LightGBM/XGBoost/SVM pour une comparaison robuste.
 
-## Résultats
-
-Test set fixe N=78 :
+## Résultats — v1.3.0 (données prod au 2026-05-18, test N=163)
 
 | Modèle | Accuracy | Precision | Recall | F1 | ROC-AUC |
 |---|---|---|---|---|---|
-| Heuristique | 0.526 | 0.500 | 0.676 | 0.575 | 0.533 |
-| Logistic Regression | 0.385 | 0.366 | 0.405 | 0.385 | 0.386 |
-| Random Forest | 0.538 | 0.519 | 0.378 | 0.438 | 0.531 |
-| **Gradient Boosting** ★ | **0.577** | **0.571** | 0.432 | **0.492** | **0.570** |
+| Heuristique | 0.534 | 0.519 | 0.675 | 0.587 | 0.536 |
+| **Gradient Boosting** ★ | 0.540 | 0.532 | 0.525 | 0.528 | **0.540** |
+| XGBoost | 0.528 | 0.515 | 0.625 | 0.565 | 0.529 |
+| Random Forest | 0.515 | 0.506 | 0.550 | 0.527 | 0.516 |
+| LightGBM | 0.503 | 0.494 | 0.538 | 0.515 | 0.504 |
+| Logistic Regression | 0.497 | 0.486 | 0.425 | 0.453 | 0.496 |
+| SVM (RBF) | 0.454 | 0.442 | 0.425 | 0.433 | 0.453 |
 
-**GBM bat l'heuristique de +3.7 pts ROC-AUC.** Pas écrasant, mais réel et reproductible. Battre une heuristique pensée par des humains qui comprennent le métier n'est pas trivial.
+### Le finding central — et la vraie leçon du projet
 
-Trade-off intéressant : l'heuristique a un recall élevé (0.676) mais une precision moyenne (0.500). GBM est plus prudent (recall 0.432) mais plus précis quand il dit "win" (precision 0.571). Pour un trader qui veut éviter les faux positifs, GBM est préférable.
+En **v1.2.0** (411 samples, test N=78), le GBM battait l'heuristique de **+3.7 pts ROC-AUC** (0.570 vs 0.533). J'ai trouvé ça encourageant.
+
+En **v1.3.0**, j'ai ré-entraîné sur la prod Hetzner qui avait accumulé **2× plus de données** (814 samples, test N=163). Résultat : le GBM ne bat plus l'heuristique que de **+0.3 pts** (0.540 vs 0.536) — une **quasi-égalité statistique**.
+
+**Conclusion honnête : le "+3.7 pts" était essentiellement du bruit dû au petit test set (N=78).** Avec un test set 2× plus grand, l'estimateur converge et l'avantage disparaît. C'est exactement l'illustration de pourquoi on ne fait pas confiance à des métriques sur un petit échantillon — et c'est plus précieux pour un jury qu'un faux résultat flatteur.
+
+Ce qui reste vrai :
+- Les modèles d'arbres (GBM, XGBoost, RF) sont au coude-à-coude avec l'heuristique (~0.52-0.54)
+- LogReg et SVM sont sous l'heuristique → la relation est non-linéaire mais le signal est faible
+- L'heuristique de Foresight, pensée par des humains, est **étonnamment dure à battre**
+
+Trade-off : l'heuristique garde un recall élevé (0.675) mais une precision moyenne (0.519). Le GBM équilibre mieux (precision 0.532, recall 0.525). Pour un trader qui veut limiter les faux positifs, le GBM reste légèrement préférable malgré la ROC-AUC quasi identique.
 
 Plots dans [`../plots/`](../plots/).
 
 ## Limitations
 
-1. **411 samples reste petit**. Avec 1000-1500 samples (estimation : 2-3 mois de plus de prod), les chiffres seraient plus robustes.
-2. **23 jours de couverture seulement.** Pas de diversité de régime de marché — risque de non-généralisation.
-3. **Split aléatoire au lieu de TimeSeriesSplit.** Méthodologiquement discutable pour des données financières temporelles. Avec plus de données, j'utiliserais un split temporel.
-4. **Bug `direction_correct` dans Foresight.** À fixer en amont.
+1. **Le signal est faible.** Toutes les ROC-AUC sont entre 0.45 et 0.54 — proche du hasard. Soit les features disponibles ne capturent pas assez d'information, soit prédire `direction_correct` à T+24h est intrinsèquement très dur (marchés quasi-efficients).
+2. **814 samples reste modeste** pour un signal aussi faible. Il faudrait peut-être 5000+ samples pour distinguer proprement les modèles.
+3. **26 jours de couverture, split aléatoire.** Un `TimeSeriesSplit` serait méthodologiquement plus correct pour des données financières.
+4. **Bug `direction_correct` dans Foresight.** Label calculé manuellement depuis `move_t24h_pct` — à fixer en amont.
 
 ## Conclusion
 
-Le pipeline ML marche end-to-end : export Foresight → cleaning → feature engineering → 3 modèles → évaluation → dashboard Streamlit. Le best model (GBM) bat l'heuristique de +3.7 pts ROC-AUC. La v1.1.0 est publiée en GitHub Release avec les artefacts (`best_model.joblib`, `scaler.pkl`, `feature_order.pkl`, `model_card.json`).
+Le pipeline ML marche end-to-end : export Foresight (prod Hetzner) → cleaning → feature engineering → 6 modèles → évaluation → dashboard Streamlit, le tout scalable automatiquement avec le volume.
+
+Le résultat final est **honnête et nuancé** : sur 814 samples, aucun modèle ML ne bat clairement l'heuristique de Foresight (GBM +0.3 pts ROC-AUC, dans le bruit). Le projet a sa vraie valeur dans la **démarche** : avoir détecté que le résultat prometteur de v1.2.0 (+3.7 pts) était un artefact du petit test set, et l'avoir corrigé en ré-entraînant sur plus de données dès qu'elles étaient disponibles. C'est ça, faire du ML rigoureux.
 
 **Suite** :
-1. Laisser Foresight tourner 1-2 mois pour accumuler plus de données, puis re-runner `train.py`. Le pipeline scale automatiquement.
-2. Brancher le `backend-foresight` (FastAPI sert `/predict`) en A/B test dans Foresight pour mesurer le gain en winrate réel.
+1. Le signal est faible — soit enrichir les features (ajouter du contexte marché, historique du trader), soit accepter que prédire un marché quasi-efficient à 24h est intrinsèquement dur.
+2. Laisser Foresight accumuler encore (objectif 5000+ samples) et re-runner `train.py` — le pipeline scale tout seul.
+3. Si un jour un modèle bat l'heuristique de façon stable, le brancher en A/B test via `backend-foresight`.
 
 ## Annexes
 
 - Repo : <https://github.com/foresight-ml-poc/ml-foresight>
-- Release v1.1.0 : <https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.1.0>
+- Release v1.3.0 : <https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.3.0>
 - Foresight (privé) : <https://github.com/vcapton-jpg/polymarket-ai>
 - Référence pédagogique : <https://github.com/basile-desjuzeur/ml-poc-project>

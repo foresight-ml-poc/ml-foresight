@@ -324,8 +324,8 @@ def evaluate_heuristic_baseline(y_test) -> dict:
 # ---------- Best model selection + model card ----------
 
 def select_best_and_write_card(all_metrics: dict, feature_order: list,
-                                heuristic: dict) -> str:
-    """Pick best model by test ROC-AUC, copy to best_model.pkl, write model_card.json."""
+                                heuristic: dict, n_train: int, n_test: int) -> str:
+    """Pick best model by test ROC-AUC, copy to best_model.joblib, write model_card.json."""
     import shutil
 
     best_key = max(all_metrics, key=lambda k: all_metrics[k]["roc_auc"])
@@ -338,7 +338,7 @@ def select_best_and_write_card(all_metrics: dict, feature_order: list,
     log.info(f"Copied {src.name} → {dst.name}")
 
     card = {
-        "model_version": "v1.1.0",
+        "model_version": "v1.3.0",
         "trained_at": datetime.now().isoformat(timespec="seconds"),
         "best_model_type": best_key,
         "best_model_path": f"models/{best_key}.joblib",
@@ -347,12 +347,16 @@ def select_best_and_write_card(all_metrics: dict, feature_order: list,
         "test_metrics": all_metrics,
         "heuristic_baseline": heuristic,
         "training_seed": SEED,
-        "dataset_size": {"train": 32, "test": 8, "total": 40},
+        "dataset_size": {
+            "train": n_train,
+            "test": n_test,
+            "total": n_train + n_test,
+        },
         "notes": (
-            "MLP was substituted with GradientBoosting because tf.keras.fit() hung "
-            "on this conda env / Apple Silicon for N=32. Test metrics are noisy "
-            "due to the small test set (8 samples) — re-train when more outcomes "
-            "accumulate in Foresight."
+            "6 models compared (LogReg, RandomForest, GradientBoosting, "
+            "LightGBM, XGBoost, SVM). MLP was dropped earlier because "
+            "tf.keras.fit() hung on this conda env. Trained on the production "
+            "Hetzner dataset."
         ),
     }
     MODEL_CARD_FILE.write_text(json.dumps(card, indent=2))
@@ -504,7 +508,10 @@ def main() -> None:
     heuristic_metrics = evaluate_heuristic_baseline(y_test)
     log.info(f"Heuristic baseline metrics: {heuristic_metrics}")
 
-    best_key = select_best_and_write_card(all_metrics, feature_order, heuristic_metrics)
+    best_key = select_best_and_write_card(
+        all_metrics, feature_order, heuristic_metrics,
+        n_train=len(X_train), n_test=len(X_test),
+    )
     log.info(f"Selected best model: {best_key}")
 
     generate_plots(models, X_test, y_test, all_metrics,

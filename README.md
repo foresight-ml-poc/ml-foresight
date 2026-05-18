@@ -10,23 +10,29 @@ Foresight émet des signaux notés 0–100 par une formule fixe. Sur 2 mois de p
 
 **Tâche** : classification binaire — étant donné un signal qui vient d'être émis, prédire si le marché va effectivement bouger dans la direction prédite à T+24h (`direction_correct`).
 
-## Résultats
+## Résultats (v1.3.0 — données prod au 2026-05-18)
 
-411 signaux entraînés (2026-04-12 → 2026-05-04), split 80/20, test set N=78. **6 modèles ML comparés** + heuristique baseline.
+814 signaux exploitables (2026-04-12 → 2026-05-17), split 80/20, **test set N=163**. 6 modèles ML comparés + heuristique baseline. Données extraites de la prod Hetzner.
 
 ![ML vs Heuristique](plots/ml_vs_heuristic.png)
 
 | Modèle | Accuracy | F1 | ROC-AUC |
 |---|---|---|---|
-| Heuristique Foresight | 0.526 | 0.575 | 0.533 |
-| Logistic Regression | 0.385 | 0.385 | 0.386 |
-| Random Forest | 0.538 | 0.438 | 0.531 |
-| **Gradient Boosting** ★ | 0.577 | 0.492 | **0.570** |
-| LightGBM | 0.513 | 0.472 | 0.510 |
-| XGBoost | 0.538 | 0.514 | 0.537 |
-| SVM (RBF) | 0.526 | 0.532 | 0.528 |
+| Heuristique Foresight | 0.534 | 0.587 | 0.536 |
+| **Gradient Boosting** ★ | 0.540 | 0.528 | **0.540** |
+| XGBoost | 0.528 | 0.565 | 0.529 |
+| Random Forest | 0.515 | 0.527 | 0.516 |
+| LightGBM | 0.503 | 0.515 | 0.504 |
+| Logistic Regression | 0.497 | 0.453 | 0.496 |
+| SVM (RBF) | 0.454 | 0.433 | 0.453 |
 
-**Gradient Boosting** bat l'heuristique de **+3.7 pts ROC-AUC**. XGBoost est juste devant l'heuristique (+0.4 pts). LightGBM et SVM sont à peu près au niveau de l'heuristique. LogReg sous-performe nettement (la relation est non-linéaire). On voit que les modèles d'arbres dominent sur ce type de données tabulaires.
+**Le finding important — et honnête.** En v1.2.0 (411 samples, test N=78) le GBM battait l'heuristique de **+3.7 pts ROC-AUC**. En re-entraînant sur **2× plus de données** (814 samples, test N=163), cet écart s'effondre à **+0.3 pts** (0.540 vs 0.536) — soit une **quasi-égalité**.
+
+C'est la leçon centrale du projet : le "+3.7 pts" de v1.2.0 était en grande partie du **bruit lié à la petite taille du test set**. Avec un test set 2× plus grand, l'estimation est plus fiable et le ML ne bat plus clairement l'heuristique. C'est moins flatteur mais beaucoup plus crédible scientifiquement — et ça illustre exactement pourquoi la taille du test set compte.
+
+![ROC curves](plots/roc_curves_comparison.png)
+
+![Feature importance comparison](plots/feature_importance_comparison.png)
 
 ![ROC curves](plots/roc_curves_comparison.png)
 
