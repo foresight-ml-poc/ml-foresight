@@ -1,0 +1,102 @@
+{
+  "n": 554,
+  "rule": "net_tp10_h60",
+  "base_winrate": 0.1137,
+  "base_net_rtp_pct": -3.243,
+  "models": {
+    "LogReg": {
+      "walkforward_auc": 0.557,
+      "oot_n": 277,
+      "selective": {
+        "top_10pct": {
+          "n_trades": 28,
+          "winrate": 0.143,
+          "net_rtp_pct": -1.98,
+          "vs_trade_all_pp": 1.24
+        },
+        "top_20pct": {
+          "n_trades": 56,
+          "winrate": 0.196,
+          "net_rtp_pct": -3.06,
+          "vs_trade_all_pp": 0.16
+        },
+        "top_30pct": {
+          "n_trades": 83,
+          "winrate": 0.145,
+          "net_rtp_pct": -3.88,
+          "vs_trade_all_pp": -0.66
+        },
+        "top_50pct": {
+          "n_trades": 139,
+          "winrate": 0.151,
+          "net_rtp_pct": -3.11,
+          "vs_trade_all_pp": 0.11
+        }
+      }
+    },
+    "RandomForest": {
+      "walkforward_auc": 0.557,
+      "oot_n": 277,
+      "selective": {
+        "top_10pct": {
+          "n_trades": 28,
+          "winrate": 0.036,
+          "net_rtp_pct": -4.11,
+          "vs_trade_all_pp": -0.89
+        },
+        "top_20pct": {
+          "n_trades": 56,
+          "winrate": 0.125,
+          "net_rtp_pct": -4.42,
+          "vs_trade_all_pp": -1.21
+        },
+        "top_30pct": {
+          "n_trades": 84,
+          "winrate": 0.155,
+          "net_rtp_pct": -3.63,
+          "vs_trade_all_pp": -0.41
+        },
+        "top_50pct": {
+          "n_trades": 139,
+          "winrate": 0.151,
+          "net_rtp_pct": -3.51,
+          "vs_trade_all_pp": -0.29
+        }
+      }
+    },
+    "GradBoost": {
+      "walkforward_auc": 0.601,
+      "oot_n": 277,
+      "selective": {
+        "top_10pct": {
+          "n_trades": 28,
+          "winrate": 0.179,
+          "net_rtp_pct": -2.68,
+          "vs_trade_all_pp": 0.54
+        },
+        "top_20pct": {
+          "n_trades": 56,
+          "winrate": 0.161,
+          "net_rtp_pct": -3.33,
+          "vs_trade_all_pp": -0.11
+        },
+        "top_30pct": {
+          "n_trades": 83,
+          "winrate": 0.169,
+          "net_rtp_pct": -3.76,
+          "vs_trade_all_pp": -0.54
+        },
+        "top_50pct": {
+          "n_trades": 139,
+          "winrate": 0.158,
+          "net_rtp_pct": -3.4,
+          "vs_trade_all_pp": -0.18
+        }
+      }
+    }
+  },
+  "verdict": {
+    "positive_oot_selections": [],
+    "honest": "Aucune sélection ML ne devient nette positive out-of-time : même en triant, le ML ne sauve pas un edge directionnel inexistant. Le levier honnête reste la MAGNITUDE, pas la sélection directionnelle."
+  }
+}

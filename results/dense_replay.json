@@ -1,0 +1,94 @@
+{
+  "n_paths": 579,
+  "mfe_60_median_pct": 0.0,
+  "mfe_24h_median_pct": 11.68,
+  "rules": {
+    "TP5_H30": {
+      "n": 579,
+      "winrate": 0.116,
+      "net_rtp_pct": -3.44,
+      "t": -12.56,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.91
+    },
+    "TP5_H60": {
+      "n": 579,
+      "winrate": 0.152,
+      "net_rtp_pct": -3.71,
+      "t": -10.33,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.93
+    },
+    "TP5_H120": {
+      "n": 579,
+      "winrate": 0.223,
+      "net_rtp_pct": -4.23,
+      "t": -9.77,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -5.18
+    },
+    "TP10_H30": {
+      "n": 579,
+      "winrate": 0.098,
+      "net_rtp_pct": -3.36,
+      "t": -11.79,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.76
+    },
+    "TP10_H60": {
+      "n": 579,
+      "winrate": 0.135,
+      "net_rtp_pct": -3.48,
+      "t": -9.26,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.43
+    },
+    "TP10_H120": {
+      "n": 579,
+      "winrate": 0.197,
+      "net_rtp_pct": -3.91,
+      "t": -8.58,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -4.65
+    },
+    "TP15_H30": {
+      "n": 579,
+      "winrate": 0.095,
+      "net_rtp_pct": -3.31,
+      "t": -11.17,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.79
+    },
+    "TP15_H60": {
+      "n": 579,
+      "winrate": 0.131,
+      "net_rtp_pct": -3.32,
+      "t": -8.56,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.19
+    },
+    "TP15_H120": {
+      "n": 579,
+      "winrate": 0.185,
+      "net_rtp_pct": -3.7,
+      "t": -7.85,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -4.37
+    }
+  },
+  "verdict": {
+    "n_rules_tested": 9,
+    "expected_false_pos_at_p05": 0.5,
+    "significant_positive_rules": [],
+    "honest": "Aucune règle nette significativement positive — pas d'edge exploitable même avec le chemin dense."
+  }
+}

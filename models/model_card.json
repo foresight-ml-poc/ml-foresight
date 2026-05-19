@@ -1,31 +1,14 @@
 {
-  "model_version": "v1.4.0",
-  "trained_at": "2026-05-19T17:15:11",
-  "best_model_type": "random_forest",
-  "best_model_path": "models/random_forest.joblib",
-  "feature_order": [
-    "cosine_score",
-    "impact_strength",
-    "llm_confidence",
-    "ambiguity_score",
-    "specificity_score",
-    "articles_count",
-    "unique_sources_count",
-    "tier_1_count",
-    "tier_2_count",
-    "tier_3_count",
-    "is_buy_yes",
-    "market_price_centered",
-    "hour_of_day",
-    "bucket_economics",
-    "bucket_geopolitics",
-    "bucket_other",
-    "bucket_politics",
-    "bucket_science",
-    "bucket_sports"
-  ],
-  "scaler_path": "models/scaler.pkl",
-  "test_metrics": {
+  "model_version": "v2.0.0-honest",
+  "trained_at": "2026-05-19T19:32:48",
+  "task": "Classification binaire — direction_correct à T+24h",
+  "dataset": {
+    "source": "signals_export_2026-05-19.csv",
+    "train": 684,
+    "test": 171,
+    "total": 855
+  },
+  "models": {
     "logreg": {
       "accuracy": 0.49707602339181284,
       "precision": 0.4939759036144578,
@@ -34,53 +17,46 @@
       "roc_auc": 0.49699042407660743
     },
     "random_forest": {
-      "accuracy": 0.5730994152046783,
-      "precision": 0.5714285714285714,
+      "accuracy": 0.543859649122807,
+      "precision": 0.5393258426966292,
       "recall": 0.5647058823529412,
-      "f1": 0.5680473372781065,
-      "roc_auc": 0.5730506155950752
+      "f1": 0.5517241379310345,
+      "roc_auc": 0.5439808481532148
     },
-    "gradient_boosting": {
-      "accuracy": 0.5087719298245614,
-      "precision": 0.5048543689320388,
-      "recall": 0.611764705882353,
-      "f1": 0.5531914893617021,
-      "roc_auc": 0.5093707250341998
-    },
-    "lightgbm": {
-      "accuracy": 0.5321637426900585,
-      "precision": 0.5263157894736842,
-      "recall": 0.5882352941176471,
-      "f1": 0.5555555555555556,
-      "roc_auc": 0.5324897400820794
-    },
-    "xgboost": {
-      "accuracy": 0.5380116959064327,
-      "precision": 0.53,
-      "recall": 0.6235294117647059,
-      "f1": 0.572972972972973,
-      "roc_auc": 0.5385088919288645
-    },
-    "svm": {
-      "accuracy": 0.5029239766081871,
-      "precision": 0.5,
-      "recall": 0.5529411764705883,
-      "f1": 0.5251396648044693,
-      "roc_auc": 0.5032147742818057
+    "kmeans": {
+      "accuracy": 0.5263157894736842,
+      "precision": 0.5238095238095238,
+      "recall": 0.5176470588235295,
+      "f1": 0.5207100591715976,
+      "roc_auc": 0.5262653898768811,
+      "adjusted_rand_index": -1.796754684823902e-05
     }
   },
-  "heuristic_baseline": {
-    "accuracy": 0.543859649122807,
-    "precision": 0.5315315315315315,
-    "recall": 0.6941176470588235,
-    "f1": 0.6020408163265306,
-    "roc_auc": 0.5447332421340629
+  "kmeans_adjusted_rand_index": -0.0,
+  "cv_vs_walkforward": {
+    "direction": {
+      "label": "Direction T+24h",
+      "n": 855,
+      "cv_auc_mean": 0.518,
+      "walkforward_auc": [
+        0.467,
+        0.525,
+        0.468
+      ],
+      "walkforward_mean": 0.487
+    },
+    "magnitude": {
+      "label": "Magnitude (gros move)",
+      "n": 855,
+      "cv_auc_mean": 0.549,
+      "walkforward_auc": [
+        0.586,
+        0.494,
+        0.499
+      ],
+      "walkforward_mean": 0.526
+    }
   },
-  "training_seed": 42,
-  "dataset_size": {
-    "train": 684,
-    "test": 171,
-    "total": 855
-  },
-  "notes": "6 models compared (LogReg, RandomForest, GradientBoosting, LightGBM, XGBoost, SVM). MLP was dropped earlier because tf.keras.fit() hung on this conda env. Trained on the production Hetzner dataset."
+  "verdict": "Les 3 modèles sont ≈ au hasard sur la direction (ROC-AUC ~0.50). K-Means : ARI ≈ 0 → aucun regroupement naturel gagnants/perdants. Surtout : la CV (5-fold mélangé) donne ~0.58 sur la magnitude, mais le walk-forward strict s'effondre à ~0.52 puis sous 0.50 sur la période récente. La CV est invalide sur série temporelle non-stationnaire. Conclusion : marché efficient vis-à-vis des features publiques. Résultat négatif, rigoureux, assumé.",
+  "training_seed": 42
 }

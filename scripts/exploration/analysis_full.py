@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 
 warnings.filterwarnings("ignore")
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from config import HEURISTIC_THRESHOLD, PLOTS_DIR, RESULTS_DIR, SEED, TARGET_COLUMN  # noqa: E402

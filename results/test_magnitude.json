@@ -1,0 +1,130 @@
+{
+  "DIR": {
+    "target": "DIRECTION T+24h (l'ancienne cible)",
+    "n": 855,
+    "class_balance": {
+      "0": 431,
+      "1": 424
+    },
+    "models": {
+      "LogReg": {
+        "roc_auc": 0.479,
+        "accuracy": 0.484
+      },
+      "RandomForest": {
+        "roc_auc": 0.518,
+        "accuracy": 0.52
+      },
+      "ExtraTrees": {
+        "roc_auc": 0.537,
+        "accuracy": 0.525
+      },
+      "GradientBoosting": {
+        "roc_auc": 0.51,
+        "accuracy": 0.506
+      },
+      "LightGBM": {
+        "roc_auc": 0.514,
+        "accuracy": 0.523
+      }
+    },
+    "best_model": "ExtraTrees",
+    "best_roc_auc": 0.537
+  },
+  "M24_med": {
+    "target": "MAGNITUDE — gros move 24h (vs médiane)",
+    "n": 855,
+    "class_balance": {
+      "0": 431,
+      "1": 424
+    },
+    "models": {
+      "LogReg": {
+        "roc_auc": 0.551,
+        "accuracy": 0.55
+      },
+      "RandomForest": {
+        "roc_auc": 0.588,
+        "accuracy": 0.565
+      },
+      "ExtraTrees": {
+        "roc_auc": 0.579,
+        "accuracy": 0.57
+      },
+      "GradientBoosting": {
+        "roc_auc": 0.576,
+        "accuracy": 0.553
+      },
+      "LightGBM": {
+        "roc_auc": 0.57,
+        "accuracy": 0.56
+      }
+    },
+    "best_model": "RandomForest",
+    "best_roc_auc": 0.588
+  },
+  "M24_20": {
+    "target": "MAGNITUDE — move majeur 24h (>20%)",
+    "n": 855,
+    "class_balance": {
+      "0": 491,
+      "1": 364
+    },
+    "models": {
+      "LogReg": {
+        "roc_auc": 0.562,
+        "accuracy": 0.549
+      },
+      "RandomForest": {
+        "roc_auc": 0.569,
+        "accuracy": 0.578
+      },
+      "ExtraTrees": {
+        "roc_auc": 0.558,
+        "accuracy": 0.544
+      },
+      "GradientBoosting": {
+        "roc_auc": 0.565,
+        "accuracy": 0.575
+      },
+      "LightGBM": {
+        "roc_auc": 0.55,
+        "accuracy": 0.543
+      }
+    },
+    "best_model": "RandomForest",
+    "best_roc_auc": 0.569
+  },
+  "M1h_med": {
+    "target": "MAGNITUDE — gros move 1h (vs médiane)",
+    "n": 855,
+    "class_balance": {
+      "1": 430,
+      "0": 425
+    },
+    "models": {
+      "LogReg": {
+        "roc_auc": 0.576,
+        "accuracy": 0.572
+      },
+      "RandomForest": {
+        "roc_auc": 0.605,
+        "accuracy": 0.564
+      },
+      "ExtraTrees": {
+        "roc_auc": 0.572,
+        "accuracy": 0.544
+      },
+      "GradientBoosting": {
+        "roc_auc": 0.59,
+        "accuracy": 0.557
+      },
+      "LightGBM": {
+        "roc_auc": 0.603,
+        "accuracy": 0.573
+      }
+    },
+    "best_model": "RandomForest",
+    "best_roc_auc": 0.605
+  }
+}

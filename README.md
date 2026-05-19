@@ -1,100 +1,157 @@
-# ml-foresight
+# ml-foresight — peut-on prédire un marché de prédiction ?
 
-POC de ML pour [Foresight](https://github.com/vcapton-jpg/polymarket-ai), mon projet de signaux de trading sur Polymarket. L'idée : remplacer la formule de scoring heuristique actuelle par un modèle entraîné sur les signaux historiques.
+POC Machine Learning · Albert School · Vadim Capton
+Structure calquée sur [basile-desjuzeur/ml-poc-project](https://github.com/basile-desjuzeur/ml-poc-project).
 
-Calqué sur la structure de [basile-desjuzeur/ml-poc-project](https://github.com/basile-desjuzeur/ml-poc-project).
+> **Réponse en une phrase.** Non — et c'est ce résultat négatif, établi
+> rigoureusement, qui fait la valeur du projet. La direction d'un marché est
+> un pile ou face (marché efficient) ; le seul signal qui *semblait* vivant
+> (la magnitude) est une **illusion de la validation croisée** : il
+> s'effondre dès qu'on teste sur le futur.
 
-## Le problème
+---
 
-Foresight émet des signaux notés 0–100 par une formule fixe. Sur 2 mois de prod, le winrate à T+24h est à 46–48 %, sous le hasard. On veut tester si un modèle ML peut faire mieux.
+## 1. Le produit en 30 secondes
 
-**Tâche** : classification binaire — étant donné un signal qui vient d'être émis, prédire si le marché va effectivement bouger dans la direction prédite à T+24h (`direction_correct`).
+[Foresight](https://yourforesight.com) est un produit réel : il surveille
+l'actualité en continu et, dès qu'une news touche un **marché de prédiction**
+Polymarket (« La Fed baisse-t-elle ses taux en septembre ? » → on achète OUI
+ou NON, le prix = la probabilité), il émet un **signal** noté 0–100 par une
+formule heuristique : direction (BUY_YES / BUY_NO) + score.
 
-## Résultats (v1.4.0 — données prod au 2026-05-19)
+**La question de ce POC :** cette heuristique faite main, peut-on faire mieux
+avec du Machine Learning ? Concrètement — *prédire si un signal ira dans le
+bon sens à T+24h* (`direction_correct`, classification binaire).
 
-855 signaux exploitables (35 jours de prod Hetzner), split 80/20, **test set N=171**. 6 modèles ML comparés + heuristique baseline. Export enrichi (39 colonnes : trajectoire de prix complète, microstructure marché) pour l'analyse, mais le ML reste sur un **allowlist strict de 19 features** (anti-leak).
+## 2. Les données — vraies, de production
 
-![ML vs Heuristique](plots/ml_vs_heuristic.png)
+- **855 signaux** exploitables exportés de la prod (Postgres, 35 jours), 39 colonnes.
+- **Anti-fuite par allowlist explicite** (`src/config.py`) : seules les ~19
+  variables connues *au moment du signal* entrent dans `X`. Les prix futurs,
+  l'issue du marché, le score heuristique ne *peuvent pas* fuiter, même si on
+  enrichit le CSV.
+- Split 80/20 stratifié, scaler ajusté sur le train uniquement.
 
-| Modèle | Accuracy | F1 | ROC-AUC |
-|---|---|---|---|
-| Heuristique Foresight | 0.544 | 0.602 | 0.545 |
-| **Random Forest** ★ | 0.573 | 0.568 | **0.573** |
-| XGBoost | 0.538 | 0.573 | 0.539 |
-| LightGBM | 0.532 | 0.556 | 0.532 |
-| Gradient Boosting | 0.509 | 0.553 | 0.509 |
-| SVM (RBF) | 0.503 | 0.525 | 0.503 |
-| Logistic Regression | 0.497 | 0.488 | 0.497 |
+## 3. Le résultat honnête
 
-**Les deux findings honnêtes :**
+### 3.1 Les 3 familles de modèles imposées : toutes ≈ pile ou face
 
-1. **L'écart reste modeste.** Le best model bat l'heuristique de **+2.8 pts ROC-AUC** (0.573 vs 0.545). En v1.2.0 (test N=78) c'était +3.7 pts, en v1.3.0 (test N=163) +0.3 pts. Le ML égale l'heuristique sans la dominer franchement.
+![Direction = pile ou face](plots/fig1_direction_pile_ou_face.png)
 
-2. **Le best model change selon le refresh** (GBM en v1.2/v1.3 → Random Forest en v1.4). Quand le signal est aussi faible, le classement des modèles est instable d'un dataset à l'autre. C'est en soi une leçon : ne pas sur-interpréter "tel modèle est le meilleur" sur un signal proche du hasard.
+| Modèle | Famille | ROC-AUC (test) |
+|---|---|---|
+| Régression logistique | linéaire | **0.497** |
+| Random Forest | ensemble d'arbres | **0.544** |
+| K-Means (k=2) | non supervisé | **0.526** · ARI ≈ **0.00** |
 
-Le winrate global des signaux est de **49.9 %** (proche du hasard) — prédire la direction d'un marché quasi-efficient à 24h est intrinsèquement dur. Le projet a sa vraie valeur dans la **démarche** : pipeline reproductible, anti-leak par allowlist, honnêteté sur l'instabilité.
+Le K-Means est la preuve la plus parlante : sans jamais voir le label, il ne
+forme **aucun cluster** qui s'aligne sur gagnants/perdants (Adjusted Rand
+Index ≈ 0). Il n'y a pas de structure cachée à trouver.
 
-![ROC curves](plots/roc_curves_comparison.png)
+### 3.2 Le cœur du POC : la validation croisée *ment*
 
-![ROC curves](plots/roc_curves_comparison.png)
+![CV vs walk-forward](plots/fig2_cv_ment.png)
 
-![Feature importance comparison](plots/feature_importance_comparison.png)
+La **magnitude** (« ce marché va-t-il beaucoup bouger ? ») semblait
+prédictible : **ROC-AUC 0.549 en validation croisée 5-fold**. Mais la CV
+mélange passé et futur. En **walk-forward strict** (on entraîne sur le passé,
+on teste sur le futur), elle s'effondre : `0.586 → 0.494 → 0.499`,
+**sous le hasard sur la période récente**.
 
-![ROC curves](plots/roc_curves_comparison.png)
+> C'est de l'**alpha decay** / de la non-stationnarité, vécu sur données
+> réelles. La leçon ML centrale du projet : **sur une série temporelle, la
+> validation croisée standard est une mesure invalide** — il faut le
+> walk-forward.
 
-![Feature importance comparison](plots/feature_importance_comparison.png)
+### 3.3 Même au grain de la minute, sans tricher : rien
 
-## Quickstart
+![Replay dense](plots/fig3_dense_replay.png)
+
+On a reconstruit le prix **minute par minute** de 554 signaux (API
+Polymarket) et appliqué une règle de sortie **sans look-ahead** (entrer au
+signal, sortir au premier instant en profit, sinon à l'horizon). Les 9
+variantes testées sont **toutes perdantes — et perdantes même brut, hors
+coûts**. Le MFE médian à 1 h est de 0 %.
+
+Trois bugs de mesure ont été trouvés et corrigés en route (marchés déjà
+résolus inclus ; les 53 % de signaux BUY_NO mesurés sur le mauvais token ;
+l'API qui renvoyait 37 jours au lieu de 24 h). **Après correction, le
+résultat négatif est plus solide, pas moins** — ce n'était pas un artefact.
+
+### 3.4 Tout ce qu'on a testé
+
+![Tout ce qu'on a testé](plots/fig4_ce_quon_a_teste.png)
+
+Quand des approches très différentes échouent **identiquement**, le problème
+n'est pas le modèle : c'est le signal.
+
+## 4. Pourquoi — l'efficience de marché, simplement
+
+Un marché de prédiction intègre l'**information publique en secondes**. Notre
+boucle news → LLM → score met des minutes : on arrive *après* le repricing
+(d'où le MFE médian à 1 h = 0 %). Les fonds qui gagnent ont des avantages
+**structurels** que Foresight n'a pas *via le ML* : la **vitesse**
+(millisecondes), des **données propriétaires** (nos features sont publiques
+et recalculables par tous → déjà dans le prix), l'**échelle**, ou le
+**market-making** (être teneur, pas preneur). On échoue exactement là où la
+plupart des fonds échouent aussi : prédire le sens à partir d'info publique.
+
+## 5. Pourquoi c'est un bon POC (et pas un échec)
+
+- Un **résultat négatif rigoureux** vaut mieux qu'un faux positif fragile
+  qu'un jury démonte en 30 s.
+- La **CV invalide sur série temporelle**, *démontrée* (0.549 → 0.526) et pas
+  récitée — concept ML avancé, sur données réelles.
+- Pipeline **anti-fuite par allowlist**, **no-look-ahead**, discipline
+  **multi-tests**, **ARI** non supervisé.
+- **3 bugs** de mesure trouvés et corrigés (l'intuition métier qui contredit
+  le modèle, puis la donnée qui tranche).
+- **Efficience de marché démontrée** empiriquement sur de la donnée de prod.
+
+## 6. Reproduire
 
 ```bash
-# Setup
-conda create -n ml-foresight python=3.11 -y
-conda activate ml-foresight
+conda create -n ml-foresight python=3.11 -y && conda activate ml-foresight
 pip install -r requirements.txt
 
-# Si tu as accès à la DB Foresight, exporte les données
-echo "FORESIGHT_DB_DSN=postgresql://..." > .env.local
-python scripts/export_from_foresight.py
+# Un échantillon anonymisé est fourni dans data/raw/ ; avec accès DB :
+#   python scripts/export_from_foresight.py
 
-# Sinon, le sample anonymisé de 50 lignes dans data/raw/ suffit pour tester
+python scripts/train.py            # 3 modèles + CV vs walk-forward + model_card
+python scripts/honest_analysis.py  # consolide results/final_honest_verdict.json
+python scripts/make_figures.py     # régénère les 4 figures de plots/
+python scripts/main.py             # éval (contrat Basile) + dashboard Streamlit
 
-# Entraîne les 3 modèles
-python scripts/train.py
-
-# Lance l'évaluation + dashboard Streamlit
-python scripts/main.py
-# → http://localhost:8501
+pytest -q                          # 18 tests (data + metrics)
 ```
 
-## Structure
+## 7. Structure
 
 ```
 scripts/
-  main.py                       # fixé Basile : eval + lance Streamlit
-  train.py                      # notre code : entraîne LogReg + RF + GBM
-  export_from_foresight.py      # SQL → CSV (notre code)
+  main.py               # fixé Basile : éval des 3 modèles + lance Streamlit
+  export_from_foresight.py   train.py   honest_analysis.py   make_figures.py
+  exploration/          # études rigoureuses (reproductibilité du verdict) :
+                        #   dense_replay_fixed, magnitude_monetize,
+                        #   ml_signal_triage, optimize_heuristic, …
 src/
-  config.py    data.py          # contrats Basile, adaptés au projet
-  metrics.py   app.py
-  model_io.py  results.py       # fixés Basile
-  __init__.py
-plots/                          # générés par train.py, commités
-docs/
-  rapport.md                    # rapport académique
-  specs/                        # design doc
+  config.py  data.py  metrics.py  app.py     # contrats Basile (adaptés)
+  model_io.py  results.py  __init__.py       # fixés Basile
+models/   model_card.json + logreg/random_forest/kmeans .joblib
+plots/    fig1..fig4 (générées, commitées)
+results/  *.json — dont final_honest_verdict.json (la synthèse)
+docs/     rapport.md (rapport académique honnête)
 ```
 
-## Architecture (3 repos)
+## 8. Architecture (3 repos)
 
-- [ml-foresight](https://github.com/foresight-ml-poc/ml-foresight) (ici) — pipeline ML
-- [backend-foresight](https://github.com/foresight-ml-poc/backend-foresight) — FastAPI qui sert le modèle
-- [frontend-foresight](https://github.com/foresight-ml-poc/frontend-foresight) — démo React
+- **ml-foresight** (ici) — le pipeline ML et le verdict
+- [backend-foresight](https://github.com/foresight-ml-poc) — FastAPI de service
+- [frontend-foresight](https://github.com/foresight-ml-poc) — démo
 
-Le modèle entraîné + scaler + model_card.json sont publiés en [GitHub Release v1.1.0](https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.1.0). Le backend les télécharge au startup.
+## 9. Engagement d'honnêteté
 
-## Notes
-
-- Le 3e modèle prévu était un MLP Keras mais TensorFlow se bloquait sur cet env (Apple Silicon, TF 2.21). Substitué par GradientBoosting — détails dans [`docs/rapport.md`](docs/rapport.md).
-- v1.0.0 était capée à 40 samples car on joignait `event_market_features` (table populée seulement depuis 2026-04-27). v1.1.0 lève cette contrainte en utilisant directement le `signal_score` de Foresight comme baseline.
-
-Voir [`docs/rapport.md`](docs/rapport.md) pour les détails et limitations.
+Aucun edge fabriqué. Toutes les pistes proposées ont été testées avec la même
+rigueur. La recherche s'arrête volontairement ici : continuer à chercher un
+résultat positif sur ce signal serait du p-hacking. Détails et limites dans
+[`docs/rapport.md`](docs/rapport.md).

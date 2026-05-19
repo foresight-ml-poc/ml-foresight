@@ -1,0 +1,116 @@
+{
+  "n_paths": 554,
+  "filter": "0.02<=YES0<=0.98",
+  "dropped": {
+    "no_history": 312,
+    "dead_market": 4,
+    "flat": 21
+  },
+  "direction_mix": {
+    "BUY_NO": 298,
+    "BUY_YES": 256
+  },
+  "mfe_60_median_pct": 0.0,
+  "mfe_60_mean_pct": 2.34,
+  "mfe_60_share_pos": 0.422,
+  "mfe_60_share_ge5": 0.108,
+  "mfe_24h_median_pct": 3.95,
+  "mfe_24h_when_min_median": 389.0,
+  "rules": {
+    "TP5_H30": {
+      "n": 554,
+      "winrate": 0.099,
+      "net_rtp_pct": -3.27,
+      "gross_rtp_pct": -0.27,
+      "t": -17.21,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.13
+    },
+    "TP5_H60": {
+      "n": 554,
+      "winrate": 0.13,
+      "net_rtp_pct": -3.4,
+      "gross_rtp_pct": -0.4,
+      "t": -13.92,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.25
+    },
+    "TP5_H120": {
+      "n": 554,
+      "winrate": 0.191,
+      "net_rtp_pct": -3.9,
+      "gross_rtp_pct": -0.9,
+      "t": -11.67,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.79
+    },
+    "TP10_H30": {
+      "n": 554,
+      "winrate": 0.085,
+      "net_rtp_pct": -3.26,
+      "gross_rtp_pct": -0.26,
+      "t": -15.97,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.02
+    },
+    "TP10_H60": {
+      "n": 554,
+      "winrate": 0.114,
+      "net_rtp_pct": -3.24,
+      "gross_rtp_pct": -0.24,
+      "t": -12.3,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -2.81
+    },
+    "TP10_H120": {
+      "n": 554,
+      "winrate": 0.166,
+      "net_rtp_pct": -3.69,
+      "gross_rtp_pct": -0.69,
+      "t": -10.14,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -3.23
+    },
+    "TP15_H30": {
+      "n": 554,
+      "winrate": 0.081,
+      "net_rtp_pct": -3.2,
+      "gross_rtp_pct": -0.2,
+      "t": -14.98,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -2.92
+    },
+    "TP15_H60": {
+      "n": 554,
+      "winrate": 0.112,
+      "net_rtp_pct": -3.11,
+      "gross_rtp_pct": -0.11,
+      "t": -11.27,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -2.57
+    },
+    "TP15_H120": {
+      "n": 554,
+      "winrate": 0.161,
+      "net_rtp_pct": -3.49,
+      "gross_rtp_pct": -0.49,
+      "t": -9.14,
+      "p": 0.0,
+      "significant_positive": false,
+      "net_rtp_out_of_time_pct": -2.94
+    }
+  },
+  "verdict": {
+    "n_rules_tested": 9,
+    "significant_positive_rules": [],
+    "honest": "Toujours aucune règle nette significativement positive après correction des 3 bugs — le edge directionnel n'existe pas, ce n'était pas un artefact."
+  }
+}

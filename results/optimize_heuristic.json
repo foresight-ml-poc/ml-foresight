@@ -1,0 +1,64 @@
+{
+  "n_signals": 530,
+  "winrate": 0.5132,
+  "heuristic_hand_tuned": {
+    "roc_auc": 0.5254,
+    "accuracy_at_65": 0.5226
+  },
+  "logreg_learned_weights": {
+    "roc_auc": 0.4768,
+    "accuracy": 0.5019
+  },
+  "delta_roc_auc_pts": -4.86,
+  "weights": [
+    {
+      "feature": "freshness_factor",
+      "hand_weight": 0.1125,
+      "learned_weight": 0.0612,
+      "effect": "hurts"
+    },
+    {
+      "feature": "source_weight",
+      "hand_weight": 0.075,
+      "learned_weight": 0.135,
+      "effect": "helps"
+    },
+    {
+      "feature": "confirmation_factor",
+      "hand_weight": 0.1125,
+      "learned_weight": 0.0423,
+      "effect": "hurts"
+    },
+    {
+      "feature": "impact_strength",
+      "hand_weight": 0.2925,
+      "learned_weight": 0.3958,
+      "effect": "helps"
+    },
+    {
+      "feature": "llm_confidence",
+      "hand_weight": 0.1575,
+      "learned_weight": 0.1274,
+      "effect": "hurts"
+    },
+    {
+      "feature": "liquidity_factor",
+      "hand_weight": 0.1,
+      "learned_weight": 0.2376,
+      "effect": "hurts"
+    },
+    {
+      "feature": "spread_penalty",
+      "hand_weight": 0.0875,
+      "learned_weight": 0.0,
+      "effect": "hurts"
+    },
+    {
+      "feature": "time_to_resolution_factor",
+      "hand_weight": 0.0625,
+      "learned_weight": 0.0007,
+      "effect": "helps"
+    }
+  ],
+  "verdict": "Poids appris ≈ poids main : la formule manuelle est déjà bien calibrée (ou le signal est trop faible pour départager)"
+}

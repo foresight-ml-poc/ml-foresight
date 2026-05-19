@@ -1,0 +1,79 @@
+{
+  "part_A_informational": {
+    "n": 554,
+    "base_rate_major_pct": 31.41,
+    "top_10pct_major_rate_pct": 22.73,
+    "top_20pct_major_rate_pct": 31.82,
+    "top_30pct_major_rate_pct": 31.82,
+    "walkforward_auc_bigmove": 0.429,
+    "lift_top10": 0.72
+  },
+  "part_B_overreaction_fade": {
+    "spread_pp_roundtrip": 3.0,
+    "grid": {
+      "m": [
+        8.0,
+        15.0
+      ],
+      "T": [
+        15,
+        30
+      ],
+      "H": [
+        60,
+        120
+      ],
+      "fade_tp": 0.5
+    },
+    "n_rules_tested": 4,
+    "expected_false_pos_at_p05": 0.2,
+    "rules": {
+      "m8_T15_H60": {
+        "n_trades": 27,
+        "winrate": 0.407,
+        "net_pct": -5.62,
+        "gross_pct": -2.62,
+        "t": -1.59,
+        "p": 0.1244,
+        "net_out_of_time_pct": -12.18,
+        "net_mag_filtered_oot_pct": 0.3,
+        "significant_positive": false
+      },
+      "m8_T15_H120": {
+        "n_trades": 27,
+        "winrate": 0.407,
+        "net_pct": -4.89,
+        "gross_pct": -1.89,
+        "t": -1.54,
+        "p": 0.1354,
+        "net_out_of_time_pct": -9.86,
+        "net_mag_filtered_oot_pct": -1.17,
+        "significant_positive": false
+      },
+      "m8_T30_H60": {
+        "n_trades": 35,
+        "winrate": 0.2,
+        "net_pct": -5.38,
+        "gross_pct": -2.38,
+        "t": -2.04,
+        "p": 0.0491,
+        "net_out_of_time_pct": -4.54,
+        "net_mag_filtered_oot_pct": 1.36,
+        "significant_positive": false
+      },
+      "m8_T30_H120": {
+        "n_trades": 35,
+        "winrate": 0.314,
+        "net_pct": -4.05,
+        "gross_pct": -1.05,
+        "t": -1.61,
+        "p": 0.1172,
+        "net_out_of_time_pct": -3.18,
+        "net_mag_filtered_oot_pct": -0.28,
+        "significant_positive": false
+      }
+    },
+    "positive_and_oot_confirmed": []
+  },
+  "verdict": "L'amplitude n'a PAS de monétisation directe honnête sur Polymarket : le fade d'overréaction ne survit pas net de spread out-of-time. Sa valeur est INFORMATIONNELLE (priorisation : lift x0.72 sur les gros movers), pas un edge de trading autonome."
+}

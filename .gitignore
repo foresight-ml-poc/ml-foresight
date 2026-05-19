@@ -233,3 +233,8 @@ results/*.csv
 logs/*
 !logs/.gitkeep
 .streamlit/
+# Cache dense Polymarket (27 Mo, données prod, régénérable via
+# scripts/exploration/dense_replay_fixed.py) — preuve = results/*.json
+data/dense_cache/
+# Export prod des facteurs heuristiques (données prod)
+data/raw/heuristic_factors.csv

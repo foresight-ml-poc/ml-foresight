@@ -1,0 +1,92 @@
+{
+  "title": "Verdict honnête — un edge ML est-il exploitable dans les signaux Foresight ?",
+  "one_line": "Non. La direction est un pile ou face (marché efficient), et le seul signal qui semblait vivant (la magnitude) est un artefact de validation croisée — il s'effondre en walk-forward strict.",
+  "dataset": {
+    "source": "signals_export_2026-05-19.csv",
+    "train": 684,
+    "test": 171,
+    "total": 855
+  },
+  "1_three_models_direction": {
+    "task": "Prédire direction_correct à T+24h (test set)",
+    "roc_auc": {
+      "logreg": 0.497,
+      "random_forest": 0.544,
+      "kmeans": 0.526
+    },
+    "kmeans_adjusted_rand_index": -0.0,
+    "read": "Les 3 familles ≈ 0.50. K-Means ARI ≈ 0 : aucun regroupement naturel gagnants/perdants."
+  },
+  "2_cv_lies_centerpiece": {
+    "direction": {
+      "cv": 0.518,
+      "walkforward": [
+        0.467,
+        0.525,
+        0.468
+      ],
+      "walkforward_mean": 0.487
+    },
+    "magnitude": {
+      "cv": 0.549,
+      "walkforward": [
+        0.586,
+        0.494,
+        0.499
+      ],
+      "walkforward_mean": 0.526
+    },
+    "read": "La CV (5-fold mélangé) flatte la magnitude ; le walk-forward strict la ramène au hasard et la fait passer sous 0.50 sur la période récente. Démonstration manuelle de l'alpha decay / non-stationnarité."
+  },
+  "3_dense_replay_no_look_ahead": {
+    "n_paths": 554,
+    "direction_mix": {
+      "BUY_NO": 298,
+      "BUY_YES": 256
+    },
+    "mfe_60_median_pct": 0.0,
+    "mfe_60_share_pos": 0.422,
+    "mfe_24h_median_pct": 3.95,
+    "mfe_24h_when_min_median": 389.0,
+    "exit_rules_net_rtp_range_pct": [
+      -3.9,
+      -3.11
+    ],
+    "exit_rules_gross_rtp_range_pct": [
+      -0.9,
+      -0.11
+    ],
+    "n_rules_tested": 9,
+    "significant_positive_rules": [],
+    "bugs_fixed_thanks_to_user_intuition": [
+      "Marchés déjà résolus inclus (MFE=0 artificiel)",
+      "BUY_NO mesuré sur le mauvais token (53% de l'échantillon)",
+      "API CLOB ignore endTs → fenêtre 37 j au lieu de 24 h"
+    ],
+    "read": "Même chemin minute par minute, règle sans look-ahead : les 9 variantes sont négatives, et négatives MÊME brut (hors spread). MFE médian 1h = 0 %. L'edge directionnel n'existe pas — ce n'était pas un artefact des bugs."
+  },
+  "4_magnitude_does_not_monetize": {
+    "informational_lift_top10": 0.72,
+    "walkforward_auc_bigmove": 0.429,
+    "overreaction_fade_verdict": "L'amplitude n'a PAS de monétisation directe honnête sur Polymarket : le fade d'overréaction ne survit pas net de spread out-of-time. Sa valeur est INFORMATIONNELLE (priorisation : lift x0.72 sur les gros movers), pas un edge de trading autonome.",
+    "read": "Pas de straddle possible sur un marché binaire ; le fade d'overréaction est négatif même brut. La magnitude n'a qu'une valeur informationnelle — et elle ne tient pas out-of-time non plus."
+  },
+  "why_efficient_market": {
+    "hedge_fund_edges_foresight_lacks": {
+      "vitesse": "boucle news→signal en minutes ; les desks repricent en millisecondes (MFE 1h médian = 0 %)",
+      "donnees_proprietaires": "features = news publiques + LLM, recalculables par tous → déjà price",
+      "echelle": "un 0.52 instable ne se diversifie pas en edge",
+      "market_making": "le signal est preneur (paie le spread), pas teneur"
+    },
+    "read": "On échoue exactement là où la plupart des fonds échouent aussi : prédire le sens à partir d'info publique. Les gagnants ont des edges structurels, pas un meilleur modèle."
+  },
+  "verdict": "Les 3 modèles sont ≈ au hasard sur la direction (ROC-AUC ~0.50). K-Means : ARI ≈ 0 → aucun regroupement naturel gagnants/perdants. Surtout : la CV (5-fold mélangé) donne ~0.58 sur la magnitude, mais le walk-forward strict s'effondre à ~0.52 puis sous 0.50 sur la période récente. La CV est invalide sur série temporelle non-stationnaire. Conclusion : marché efficient vis-à-vis des features publiques. Résultat négatif, rigoureux, assumé.",
+  "what_makes_this_a_strong_poc": [
+    "Résultat négatif rigoureux > faux positif fragile",
+    "CV invalide sur série temporelle : démontré, pas récité (0.549 → 0.526)",
+    "Anti-fuite par allowlist, no-look-ahead, multi-tests, ARI",
+    "3 bugs de mesure trouvés et corrigés (intuition métier)",
+    "Efficience de marché démontrée sur données de prod réelles"
+  ],
+  "honesty_commitment": "Aucun edge fabriqué. Toutes les pistes testées. La recherche s'arrête volontairement ici : continuer = p-hacking."
+}

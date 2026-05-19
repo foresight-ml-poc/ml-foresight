@@ -1,0 +1,74 @@
+{
+  "DIR": {
+    "label": "DIRECTION @ T+24h (snapshot — l'ancienne)",
+    "n": 855,
+    "class_balance": {
+      "0": 431,
+      "1": 424
+    },
+    "cv_auc_mean": 0.527,
+    "cv_auc_min": 0.506,
+    "cv_auc_max": 0.55,
+    "cv_auc_std": 0.012,
+    "walkforward_auc": [
+      0.468,
+      0.513,
+      0.467
+    ],
+    "walkforward_mean": 0.483
+  },
+  "NETUSE": {
+    "label": "CHEMIN — favorable > adverse (net-utile)",
+    "n": 855,
+    "class_balance": {
+      "0": 440,
+      "1": 415
+    },
+    "cv_auc_mean": 0.52,
+    "cv_auc_min": 0.493,
+    "cv_auc_max": 0.541,
+    "cv_auc_std": 0.012,
+    "walkforward_auc": [
+      0.493,
+      0.494,
+      0.532
+    ],
+    "walkforward_mean": 0.506
+  },
+  "WIN05": {
+    "label": "CHEMIN — fenêtre exploitable >5% a existé",
+    "n": 855,
+    "class_balance": {
+      "0": 464,
+      "1": 391
+    },
+    "cv_auc_mean": 0.515,
+    "cv_auc_min": 0.48,
+    "cv_auc_max": 0.531,
+    "cv_auc_std": 0.014,
+    "walkforward_auc": [
+      0.433,
+      0.473,
+      0.527
+    ],
+    "walkforward_mean": 0.478
+  },
+  "WIN10": {
+    "label": "CHEMIN — fenêtre exploitable >10% a existé",
+    "n": 855,
+    "class_balance": {
+      "0": 559,
+      "1": 296
+    },
+    "cv_auc_mean": 0.51,
+    "cv_auc_min": 0.485,
+    "cv_auc_max": 0.53,
+    "cv_auc_std": 0.01,
+    "walkforward_auc": [
+      0.561,
+      0.481,
+      0.538
+    ],
+    "walkforward_mean": 0.527
+  }
+}

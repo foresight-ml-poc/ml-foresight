@@ -1,7 +1,14 @@
-"""Project configuration — adapted from basile-desjuzeur/ml-poc-project.
+"""Configuration du projet — calquée sur basile-desjuzeur/ml-poc-project.
 
-The MODELS dict is filled by scripts/train.py at training time.
-Constants for anti-leak feature exclusion and reproducibility live here.
+Le POC répond à UNE question : peut-on prédire, par ML, si un signal
+Foresight va dans le bon sens (`direction_correct`) ? La réponse honnête est
+non — et c'est ce résultat, rigoureusement établi, qui fait le projet.
+
+Trois familles de modèles imposées par le cours sont entraînées :
+  - Régression logistique (linéaire)
+  - Random Forest (ensemble d'arbres / bagging)
+  - K-Means (non supervisé — teste si les signaux se regroupent
+    naturellement en gagnants / perdants ; spoiler : non)
 """
 
 from __future__ import annotations
@@ -19,7 +26,7 @@ RESULTS_DIR = PROJECT_ROOT / "results"
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 TESTS_DIR = PROJECT_ROOT / "tests"
 
-# Auto-create directories on import (Basile's pattern)
+# Auto-création des dossiers à l'import (pattern Basile)
 for d in [
     DATA_DIR,
     DATA_DIR / "raw",
@@ -42,23 +49,23 @@ MODEL_CARD_FILE = MODELS_DIR / "model_card.json"
 STREAMLIT_HOST = "localhost"
 STREAMLIT_PORT = 8501
 
-# --- Project-specific constants ---
+# --- Constantes projet ---
 
 SEED = 42
-TARGET_COLUMN = "direction_correct"
-HEURISTIC_THRESHOLD = 65  # signal_score > 65 → label heuristique = 1
+TARGET_COLUMN = "direction_correct"   # 1 = le marché a bougé dans le sens prédit à T+24h
+HEURISTIC_THRESHOLD = 65              # signal_score > 65 → label heuristique = 1
 
-# --- Anti-leak: EXPLICIT FEATURE ALLOWLIST ---
+# --- Anti-fuite : ALLOWLIST EXPLICITE de features ---
 #
-# We use an allowlist (not a denylist) so that enriching the export CSV with
-# analysis columns (price trajectory, market microstructure, heuristic
-# internals, ...) can NEVER leak into X. Only columns listed here — plus the
-# one-hot `bucket_*` columns generated at runtime — become model features.
-#
-# Anything not in this list (labels, future-derived outcomes, heuristic
-# outputs, free-text, ids, timestamps) is simply never selected.
+# On utilise une allowlist (et non une denylist) : enrichir le CSV d'export
+# avec des colonnes d'analyse (trajectoire de prix, microstructure, internes
+# de l'heuristique…) ne peut JAMAIS faire fuiter une variable future dans X.
+# Seules les colonnes listées ici — plus les one-hot `bucket_*` générés au
+# runtime — deviennent des features. Tout le reste (labels, sorties dérivées
+# du futur, score heuristique, texte libre, ids, timestamps) n'est jamais
+# sélectionné.
 FEATURE_BASE_COLUMNS = [
-    # Raw numeric, available at signal-emission time
+    # Numériques brutes, disponibles à l'émission du signal
     "cosine_score",
     "impact_strength",
     "llm_confidence",
@@ -66,17 +73,17 @@ FEATURE_BASE_COLUMNS = [
     "specificity_score",
     "articles_count",
     "unique_sources_count",
-    # Derived in _feature_engineer()
+    # Dérivées dans _feature_engineer()
     "tier_1_count",
     "tier_2_count",
     "tier_3_count",
     "is_buy_yes",
     "market_price_centered",
     "hour_of_day",
-    # + one-hot `bucket_*` columns added dynamically
+    # + colonnes one-hot `bucket_*` ajoutées dynamiquement
 ]
 
-# Kept for backwards reference / documentation of what would leak.
+# Documenté pour mémoire : ce qui fuiterait si on l'autorisait.
 EXCLUDED_FROM_FEATURES = [
     "move_t24h_pct", "move_t5min_pct", "move_t15min_pct", "move_t1h_pct",
     "price_t5min", "price_t15min", "price_t1h", "price_t24h", "price_resolved",
@@ -84,36 +91,39 @@ EXCLUDED_FROM_FEATURES = [
     "heuristic_trade_quality", "signal_strength", "trade_quality",
 ]
 
-# Registry of trained models — populated by scripts/train.py
+# Registre des 3 modèles imposés — peuplé par scripts/train.py.
+# main.py (fixé Basile) charge chaque .joblib, appelle .predict() et
+# compute_metrics() sur le test set.
 MODELS = {
     "logreg": {
-        "name": "Logistic Regression",
-        "description": "Baseline linéaire L2, class_weight balanced, C tuné par GridSearchCV.",
+        "name": "Régression logistique",
+        "family": "linéaire",
+        "description": (
+            "Baseline linéaire L2, class_weight balanced, C réglé par "
+            "GridSearchCV 5-fold. Interprétable : ses poids = la version "
+            "« apprise » de la formule heuristique."
+        ),
         "path": MODELS_DIR / "logreg.joblib",
     },
     "random_forest": {
         "name": "Random Forest",
-        "description": "Ensemble d'arbres, RandomizedSearchCV 5-fold, class_weight balanced.",
+        "family": "ensemble d'arbres (bagging)",
+        "description": (
+            "300 arbres, class_weight balanced, RandomizedSearchCV 5-fold. "
+            "Capture les interactions non linéaires — s'il y avait une "
+            "structure, il la trouverait."
+        ),
         "path": MODELS_DIR / "random_forest.joblib",
     },
-    "gradient_boosting": {
-        "name": "Gradient Boosting",
-        "description": "Boosting d'arbres séquentiel sklearn, RandomizedSearchCV 5-fold.",
-        "path": MODELS_DIR / "gradient_boosting.joblib",
-    },
-    "lightgbm": {
-        "name": "LightGBM",
-        "description": "Boosting léger et rapide, leaf-wise tree growth, RandomizedSearchCV 5-fold.",
-        "path": MODELS_DIR / "lightgbm.joblib",
-    },
-    "xgboost": {
-        "name": "XGBoost",
-        "description": "Boosting classique level-wise avec régularisation L1+L2, RandomizedSearchCV 5-fold.",
-        "path": MODELS_DIR / "xgboost.joblib",
-    },
-    "svm": {
-        "name": "SVM (RBF)",
-        "description": "Support Vector Machine kernel RBF, GridSearchCV 5-fold sur C et gamma.",
-        "path": MODELS_DIR / "svm.joblib",
+    "kmeans": {
+        "name": "K-Means (k=2)",
+        "family": "non supervisé",
+        "description": (
+            "Regroupe les signaux en 2 clusters SANS voir le label. Si les "
+            "gagnants et les perdants formaient des groupes naturels, les "
+            "clusters s'aligneraient sur direction_correct. Ils ne s'alignent "
+            "pas (ARI ≈ 0) — preuve directe d'absence de structure."
+        ),
+        "path": MODELS_DIR / "kmeans.joblib",
     },
 }

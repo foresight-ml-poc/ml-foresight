@@ -1,139 +1,115 @@
-# Rapport ML Foresight
+# Rapport — ml-foresight
 
-> Vadim Capton · Albert School · 2026-05
+**Auteur :** Vadim Capton · **Cours :** POC Machine Learning, Albert School
+**Dépôt :** https://github.com/foresight-ml-poc/ml-foresight
 
-## Contexte
+---
 
-[Foresight](https://github.com/vcapton-jpg/polymarket-ai) est mon projet de signaux temps-réel sur Polymarket. Le pipeline ingère des news, les regroupe en événements, fait analyser l'impact sur les marchés par GPT-4o et émet un signal noté 0–100. Aujourd'hui le score est calculé par une formule heuristique fixe :
+## 1. Contexte et problème
 
-```
-signal_strength = 0.15·freshness + 0.10·source_weight + 0.15·confirmation
-                + 0.60·(0.65·impact_strength + 0.35·llm_confidence)
-trade_quality   = 0.40·liquidity + 0.35·spread + 0.25·time_to_resolution
-signal_score    = 0.75·signal_strength + 0.25·trade_quality
-```
+Foresight est un produit en production : détection temps réel de news,
+rattachement à un marché de prédiction Polymarket, émission d'un signal
+(direction + score 0–100 par une formule heuristique). Le POC pose une
+question de data science précise :
 
-L'audit interne montre un winrate de 46–48 % à T+24h. L'heuristique a atteint sa limite.
+> Peut-on, par apprentissage supervisé, prédire si un signal ira dans le bon
+> sens à T+24h (`direction_correct ∈ {0,1}`) mieux que l'heuristique ?
 
-**But du projet** : remplacer cette formule par un modèle ML supervisé qui apprend les bonnes combinaisons depuis les données.
+C'est une **classification binaire** sur données réelles de production
+(855 signaux exploitables, ~35 jours, 39 colonnes brutes).
 
-## Données
+## 2. Méthodologie
 
-889 signaux historiques exportés de la **prod Hetzner** (via Tailscale), du 2026-04-12 au 2026-05-19 (35 jours). Après cleaning : 855 exploitables.
+### 2.1 Anti-fuite par allowlist explicite
 
-**Label** : `direction_correct` à T+24h, calculé depuis `move_t24h_pct` + `direction` (la colonne native dans la DB est cassée — ~30/438 lignes remplies, j'ai écrit le calcul moi-même dans le SQL d'export).
+Le risque n°1 d'un tel POC est la fuite de données (utiliser une variable
+indisponible au moment de la prédiction). Plutôt qu'une *denylist* fragile,
+`src/config.py` définit une **allowlist** : `X` ne contient que les ~19
+variables connues à l'émission du signal (+ one-hot `bucket_*`). Toute
+colonne future (prix T+5min…T+24h, issue, score heuristique) est
+structurellement exclue. Tests unitaires : `tests/test_data.py`.
 
-**Distribution des classes** : 431 losses / 424 wins (~50/50), quasi-équilibré. Winrate global 49.9 %.
+### 2.2 Les trois familles de modèles
 
-**Split** : 80 / 20 stratifié sur le label, `random_state=42`. → 684 train, 171 test.
+| Modèle | Famille | Rôle |
+|---|---|---|
+| Régression logistique | linéaire | baseline interprétable (= heuristique « apprise ») |
+| Random Forest | ensemble d'arbres / bagging | capte les interactions non linéaires |
+| K-Means (k=2) | non supervisé | y a-t-il une structure latente gagnants/perdants ? |
 
-**Export enrichi** : 39 colonnes (trajectoire de prix T+5m→T+24h, microstructure marché, internals heuristiques) pour alimenter le dashboard d'analyse — mais le ML n'en consomme que 19 (voir anti-leak).
+### 2.3 Évaluation : CV **et** walk-forward
 
-### Anti-leak — allowlist explicite
+- **Validation croisée 5-fold** (mélange temporel) — la mesure usuelle.
+- **Walk-forward strict** : entraîner sur le passé, tester sur le futur,
+  3 blocs expansifs. C'est la *seule* mesure valide sur une série
+  temporelle financière (non-stationnaire).
 
-Le feature engineering utilise un **allowlist** (`FEATURE_BASE_COLUMNS` dans `src/config.py`), pas un denylist. X = uniquement les 19 features autorisées + les one-hot `bucket_*`. Toute autre colonne du CSV enrichi (prix futurs, outcome, internals heuristiques, free-text) n'est jamais sélectionnée — impossible de leaker même en enrichissant l'export.
+Discipline complémentaire : backtest **no-look-ahead** sur prix denses,
+contrôle du **multiple-testing**, **Adjusted Rand Index** pour le
+non-supervisé.
 
-- Aucune feature dérivée du futur (`move_*`, `price_t*`, `outcome_label`)
-- Aucune feature dérivée de l'heuristique (`signal_score`, `signal_strength`, `trade_quality`)
-- StandardScaler fit sur train uniquement
+## 3. Résultats
 
-### Pourquoi la v1.0.0 était capée à 40 samples
+### 3.1 Direction — les 3 modèles
 
-J'ai d'abord voulu comparer ML et heuristique sur les mêmes inputs (les 6 facteurs `freshness_factor`, `source_weight`, etc.). Cette table n'a été correctement populée qu'à partir du 2026-04-27 — un bug architectural documenté dans `app/scoring/event_market_features_writer.py` du repo Foresight ("the prod scoring path computed the 6 backend features inline but never persisted them").
+ROC-AUC test : LogReg **0.497**, Random Forest **0.544**, K-Means **0.526**.
+K-Means : **ARI ≈ 0.00** → aucun regroupement naturel. Les trois familles
+sont statistiquement collées au hasard.
 
-En v1.1.0, j'ai abandonné cet objectif. Le ML utilise les features dispo pour les 411 signaux ; l'heuristique utilise sa propre formule dont le résultat est déjà persisté dans `signals.signal_score`. On compare deux **systèmes de prédiction** indépendants, pas deux fonctions sur le même input.
+### 3.2 Le résultat central : la CV ment
 
-## Feature engineering
-
-19 features finales (allowlist strict) :
-
-- 4 features LLM (depuis `event_market_analysis`) : `impact_strength`, `llm_confidence`, `ambiguity_score`, `specificity_score`
-- 6 signal-time : `cosine_score`, `is_buy_yes`, `market_price_centered`, `hour_of_day`, `tier_1/2/3_count` (extraits du JSONB `source_tier_mix`)
-- 2 contexte event : `articles_count`, `unique_sources_count`
-- One-hot du `bucket` (~6 catégories → bucket_economics/geopolitics/other/politics/science/sports)
-
-## Modèles
-
-6 modèles tunés via 5-fold CV sur le train set, sélection par ROC-AUC.
-
-- **Logistic Regression** : L2, GridSearchCV sur C ∈ [0.01, 10], class_weight balanced
-- **Random Forest** : RandomizedSearchCV (20 iters) sur n_estimators, max_depth, min_samples_*, max_features
-- **Gradient Boosting** (sklearn) : RandomizedSearchCV (20 iters)
-- **LightGBM** : leaf-wise boosting, RandomizedSearchCV (20 iters)
-- **XGBoost** : level-wise boosting régularisé, RandomizedSearchCV (20 iters)
-- **SVM** : kernel RBF, GridSearchCV sur C et gamma
-
-> Le 3e modèle prévu initialement était un MLP Keras. `tf.keras.fit()` se bloquait indéfiniment sur cet env (Apple Silicon, TF 2.21). Bypass plutôt que diagnostic — substitué par GradientBoosting, puis on a ajouté LightGBM/XGBoost/SVM pour une comparaison robuste.
-
-## Résultats — v1.4.0 (données prod au 2026-05-19, test N=171)
-
-855 signaux exploitables, 35 jours de prod. Export enrichi (39 colonnes pour
-l'analyse) mais ML sur un **allowlist strict de 19 features** (anti-leak).
-
-| Modèle | Accuracy | F1 | ROC-AUC |
+| Cible | CV 5-fold | Walk-forward (blocs) | Moyenne WF |
 |---|---|---|---|
-| Heuristique | 0.544 | 0.602 | 0.545 |
-| **Random Forest** ★ | 0.573 | 0.568 | **0.573** |
-| XGBoost | 0.538 | 0.573 | 0.539 |
-| LightGBM | 0.532 | 0.556 | 0.532 |
-| Gradient Boosting | 0.509 | 0.553 | 0.509 |
-| SVM (RBF) | 0.503 | 0.525 | 0.503 |
-| Logistic Regression | 0.497 | 0.488 | 0.497 |
+| Direction | 0.518 | 0.467 / 0.525 / 0.468 | **0.487** |
+| Magnitude | **0.549** | **0.586 / 0.494 / 0.499** | **0.526** |
 
-### Les deux findings honnêtes — la vraie leçon du projet
+La magnitude paraît prédictible en CV ; en walk-forward elle décroît vers le
+hasard et passe **sous 0.50** sur la période récente. C'est une illustration
+empirique de l'**alpha decay** et de la raison pour laquelle la CV standard
+sur-estime la performance d'une série temporelle non-stationnaire.
 
-**Finding 1 — l'écart ML/heuristique est modeste et bruité.** Selon le refresh :
+### 3.3 Backtest dense, sans look-ahead
 
-| Version | Dataset | Test | Best model | Écart vs heuristique |
-|---|---|---|---|---|
-| v1.2.0 | 411 | N=78 | GradientBoosting | +3.7 pts |
-| v1.3.0 | 814 | N=163 | GradientBoosting | +0.3 pts |
-| v1.4.0 | 855 | N=171 | **Random Forest** | +2.8 pts |
+554 chemins de prix reconstruits minute par minute (API Polymarket). Règle
+pré-engagée (entrée au signal ; sortie au 1ᵉʳ instant en profit, sinon à
+l'horizon ; 9 couples take-profit × horizon). **9 règles sur 9 négatives, et
+négatives même brut** (hors spread). MFE médian à 1 h = 0 %.
 
-Le "+3.7 pts" de v1.2.0 était surtout du bruit (petit test set). Avec plus
-de données l'écart oscille entre 0 et 3 pts. Le ML égale l'heuristique sans
-la dominer franchement.
+**Trois bugs corrigés en cours de route** (transparence) : marchés déjà
+résolus inclus ; 53 % des signaux BUY_NO mesurés sur le token YES inversé au
+lieu du vrai rendement `NO = 1 − YES` ; l'API CLOB ignorant `endTs`
+(fenêtre 37 j au lieu de 24 h). Après correction le résultat négatif est
+**plus** robuste — ce n'était pas un artefact de mesure.
 
-**Finding 2 — le best model est instable.** GradientBoosting gagnait en
-v1.2/v1.3, Random Forest gagne en v1.4 sur quasiment les mêmes données. Quand
-le signal est aussi faible (toutes les ROC-AUC entre 0.50 et 0.57), le
-classement des modèles change d'un dataset à l'autre. Conclusion : ne pas
-sur-interpréter "tel modèle est le meilleur" près du hasard. C'est une leçon
-ML aussi importante que les chiffres eux-mêmes.
+## 4. Interprétation : efficience de marché
 
-Ce qui reste vrai :
-- Les modèles d'arbres (RF, XGBoost, LightGBM) sont au coude-à-coude avec
-  l'heuristique (~0.53-0.57)
-- LogReg et SVM sont sous l'heuristique → relation non-linéaire, signal faible
-- L'heuristique de Foresight, pensée par des humains, est **dure à battre**
-- Le winrate global est de **49.9 %** : prédire un marché quasi-efficient à
-  T+24h est intrinsèquement difficile
+Un marché de prédiction intègre l'information publique en secondes ; la
+boucle news→LLM→signal de Foresight prend des minutes. Les avantages des
+acteurs qui gagnent (vitesse infra, données propriétaires, échelle,
+market-making) sont **structurels**, pas « un meilleur modèle ». Prédire la
+direction depuis de l'info publique est, par construction, proche du
+non-prédictible — c'est le résultat attendu d'un marché efficient, et nos
+données le confirment.
 
-Trade-off : l'heuristique garde un recall élevé (0.694) mais une precision moyenne (0.532). Le Random Forest équilibre mieux. Pour un trader qui veut limiter les faux positifs, le RF est légèrement préférable.
+## 5. Limites
 
-Plots dans [`../plots/`](../plots/) — et dashboard Streamlit interactif (`make app`).
+- N modéré (855) et fenêtre temporelle courte (~35 j) : variance des
+  estimateurs walk-forward élevée — d'où le rapport de blocs *et* moyenne.
+- `direction_correct` à T+24h est un label grossier ; on l'a complété par le
+  backtest minute (§3.3), même conclusion.
+- Conclusion valable **pour ces features publiques** : elle ne dit pas qu'un
+  edge est impossible avec vitesse/données propriétaires (hors périmètre).
+- 3ᵉ modèle « deep learning » écarté au profit de K-Means : sur N modéré
+  tabulaire, K-Means donne une preuve d'absence-de-structure plus lisible
+  qu'un MLP (le MLP Keras se bloquait par ailleurs sur l'environnement Apple
+  Silicon / TF 2.21 — bypass assumé vu le calendrier).
 
-## Limitations
+## 6. Conclusion
 
-1. **Le signal est faible.** Toutes les ROC-AUC sont entre 0.50 et 0.57 — proche du hasard. Soit les features disponibles ne capturent pas assez d'information, soit prédire `direction_correct` à T+24h est intrinsèquement très dur (marchés quasi-efficients).
-2. **855 samples reste modeste** pour un signal aussi faible. Il faudrait peut-être 5000+ samples pour distinguer proprement les modèles (et stabiliser le best model).
-3. **35 jours de couverture, split aléatoire.** Un `TimeSeriesSplit` serait méthodologiquement plus correct pour des données financières.
-4. **Bug `direction_correct` dans Foresight.** Label calculé manuellement depuis `move_t24h_pct` — à fixer en amont.
-
-## Conclusion
-
-Le pipeline ML marche end-to-end : export Foresight (prod Hetzner) → cleaning → feature engineering → 6 modèles → évaluation → dashboard Streamlit riche (winrate par bucket/direction, calibration, trajectoire de prix), le tout scalable automatiquement avec le volume.
-
-Le résultat final est **honnête et nuancé** : sur 855 samples, le ML (RandomForest) bat l'heuristique de +2.8 pts ROC-AUC, mais l'écart oscille entre 0 et 3.7 pts selon le refresh et le best model change (GBM→RF). Le projet a sa vraie valeur dans la **démarche** : pipeline reproductible, anti-leak par allowlist explicite, et honnêteté sur l'instabilité du signal. C'est ça, faire du ML rigoureux.
-
-**Suite** :
-1. Le signal est faible — soit enrichir les features (ajouter du contexte marché, historique du trader), soit accepter que prédire un marché quasi-efficient à 24h est intrinsèquement dur.
-2. Laisser Foresight accumuler encore (objectif 5000+ samples) et re-runner `train.py` — le pipeline scale tout seul.
-3. Si un jour un modèle bat l'heuristique de façon stable, le brancher en A/B test via `backend-foresight`.
-
-## Annexes
-
-- Repo : <https://github.com/foresight-ml-poc/ml-foresight>
-- Release v1.4.0 : <https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.4.0>
-- Foresight (privé) : <https://github.com/vcapton-jpg/polymarket-ai>
-- Référence pédagogique : <https://github.com/basile-desjuzeur/ml-poc-project>
+Le POC répond honnêtement *non* à sa question, et le **démontre** par
+plusieurs angles indépendants avec une méthodologie rigoureuse (anti-fuite,
+walk-forward, no-look-ahead, multi-tests, non-supervisé). La contribution
+n'est pas un score flatteur mais une **compétence ML mature** : savoir qu'une
+validation croisée ment sur une série temporelle, l'objectiver, résister au
+p-hacking, assumer un résultat négatif solide. Synthèse machine-lisible :
+[`results/final_honest_verdict.json`](../results/final_honest_verdict.json).

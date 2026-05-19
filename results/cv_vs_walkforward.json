@@ -1,0 +1,24 @@
+{
+  "direction": {
+    "label": "Direction T+24h",
+    "n": 855,
+    "cv_auc_mean": 0.518,
+    "walkforward_auc": [
+      0.467,
+      0.525,
+      0.468
+    ],
+    "walkforward_mean": 0.487
+  },
+  "magnitude": {
+    "label": "Magnitude (gros move)",
+    "n": 855,
+    "cv_auc_mean": 0.549,
+    "walkforward_auc": [
+      0.586,
+      0.494,
+      0.499
+    ],
+    "walkforward_mean": 0.526
+  }
+}
