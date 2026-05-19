@@ -9,8 +9,14 @@ histoire que le README et le rapport.
 
 from __future__ import annotations
 
-import glob
 import json
+import sys
+from pathlib import Path
+
+# Auto-bootstrap : permet `streamlit run src/app.py` directement (sans
+# devoir exporter PYTHONPATH=src). main.py (Basile) le fait déjà de son
+# côté ; ce sys.path.insert est inoffensif et idempotent.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pandas as pd
 import streamlit as st
