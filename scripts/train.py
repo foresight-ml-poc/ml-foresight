@@ -338,7 +338,7 @@ def select_best_and_write_card(all_metrics: dict, feature_order: list,
     log.info(f"Copied {src.name} → {dst.name}")
 
     card = {
-        "model_version": "v1.3.0",
+        "model_version": "v1.4.0",
         "trained_at": datetime.now().isoformat(timespec="seconds"),
         "best_model_type": best_key,
         "best_model_path": f"models/{best_key}.joblib",

@@ -20,7 +20,7 @@ from sklearn.preprocessing import StandardScaler
 
 from config import (
     DATA_DIR,
-    EXCLUDED_FROM_FEATURES,
+    FEATURE_BASE_COLUMNS,
     MODELS_DIR,
     SEED,
     TARGET_COLUMN,
@@ -123,33 +123,27 @@ def _feature_engineer(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
                                      drop_first=True, dtype=int)
     df = pd.concat([df, bucket_dummies], axis=1)
 
-    # Extract y, build drop list
     y = df[TARGET_COLUMN]
 
-    drop_cols: list[str] = [
-        TARGET_COLUMN, "direction", "bucket", "source_tier_mix",
-        "market_price_at_signal", "heuristic_score", "move_t24h_pct",
-    ]
-    if "created_at" in df.columns:
-        drop_cols.append("created_at")
-    if "signal_id" in df.columns:
-        drop_cols.append("signal_id")
-    drop_cols += [c for c in EXCLUDED_FROM_FEATURES if c in df.columns]
+    # ── ANTI-LEAK: explicit allowlist ──
+    # X = only the base feature columns + the generated bucket_* one-hots.
+    # Any other column in the (now enriched) CSV — price trajectory, market
+    # microstructure, heuristic internals, ids, timestamps, free-text — is
+    # never selected, so enriching the export can never cause a leak.
+    bucket_cols = [c for c in df.columns if c.startswith("bucket_")]
+    selected = [c for c in FEATURE_BASE_COLUMNS if c in df.columns] + bucket_cols
 
-    X = df.drop(columns=[c for c in drop_cols if c in df.columns])
+    missing = [c for c in FEATURE_BASE_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(f"Expected feature columns missing from data: {missing}")
 
-    # Some columns may be NULL (LEFT JOIN in export); impute with median
-    nullable_cols = ["specificity_score", "cosine_score"]
-    needs_copy = any(
-        col in X.columns and X[col].isnull().any() for col in nullable_cols
-    )
-    if needs_copy:
-        X = X.copy()
-    for col in nullable_cols:
-        if col in X.columns and X[col].isnull().any():
+    X = df[selected].copy()
+
+    # Impute any NULLs (LEFT JOINs in the export can introduce them)
+    for col in X.columns:
+        if X[col].isnull().any():
             X[col] = X[col].fillna(X[col].median())
 
-    # Sanity: no nulls remain
     if X.isnull().any().any():
         bad = X.columns[X.isnull().any()].tolist()
         raise ValueError(f"Unexpected NaN in features after engineering: {bad}")

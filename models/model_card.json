@@ -1,8 +1,8 @@
 {
-  "model_version": "v1.3.0",
-  "trained_at": "2026-05-18T10:32:23",
-  "best_model_type": "gradient_boosting",
-  "best_model_path": "models/gradient_boosting.joblib",
+  "model_version": "v1.4.0",
+  "trained_at": "2026-05-19T17:15:11",
+  "best_model_type": "random_forest",
+  "best_model_path": "models/random_forest.joblib",
   "feature_order": [
     "cosine_score",
     "impact_strength",
@@ -27,60 +27,60 @@
   "scaler_path": "models/scaler.pkl",
   "test_metrics": {
     "logreg": {
-      "accuracy": 0.49693251533742333,
-      "precision": 0.4857142857142857,
-      "recall": 0.425,
-      "f1": 0.4533333333333333,
-      "roc_auc": 0.4956325301204819
+      "accuracy": 0.49707602339181284,
+      "precision": 0.4939759036144578,
+      "recall": 0.4823529411764706,
+      "f1": 0.4880952380952381,
+      "roc_auc": 0.49699042407660743
     },
     "random_forest": {
-      "accuracy": 0.5153374233128835,
-      "precision": 0.5057471264367817,
-      "recall": 0.55,
-      "f1": 0.5269461077844312,
-      "roc_auc": 0.5159638554216868
+      "accuracy": 0.5730994152046783,
+      "precision": 0.5714285714285714,
+      "recall": 0.5647058823529412,
+      "f1": 0.5680473372781065,
+      "roc_auc": 0.5730506155950752
     },
     "gradient_boosting": {
-      "accuracy": 0.5398773006134969,
-      "precision": 0.5316455696202531,
-      "recall": 0.525,
-      "f1": 0.5283018867924528,
-      "roc_auc": 0.5396084337349397
+      "accuracy": 0.5087719298245614,
+      "precision": 0.5048543689320388,
+      "recall": 0.611764705882353,
+      "f1": 0.5531914893617021,
+      "roc_auc": 0.5093707250341998
     },
     "lightgbm": {
-      "accuracy": 0.5030674846625767,
-      "precision": 0.4942528735632184,
-      "recall": 0.5375,
-      "f1": 0.5149700598802395,
-      "roc_auc": 0.5036897590361445
+      "accuracy": 0.5321637426900585,
+      "precision": 0.5263157894736842,
+      "recall": 0.5882352941176471,
+      "f1": 0.5555555555555556,
+      "roc_auc": 0.5324897400820794
     },
     "xgboost": {
-      "accuracy": 0.5276073619631901,
-      "precision": 0.5154639175257731,
-      "recall": 0.625,
-      "f1": 0.5649717514124294,
-      "roc_auc": 0.529367469879518
+      "accuracy": 0.5380116959064327,
+      "precision": 0.53,
+      "recall": 0.6235294117647059,
+      "f1": 0.572972972972973,
+      "roc_auc": 0.5385088919288645
     },
     "svm": {
-      "accuracy": 0.4539877300613497,
-      "precision": 0.44155844155844154,
-      "recall": 0.425,
-      "f1": 0.43312101910828027,
-      "roc_auc": 0.45346385542168677
+      "accuracy": 0.5029239766081871,
+      "precision": 0.5,
+      "recall": 0.5529411764705883,
+      "f1": 0.5251396648044693,
+      "roc_auc": 0.5032147742818057
     }
   },
   "heuristic_baseline": {
-    "accuracy": 0.5337423312883436,
-    "precision": 0.5192307692307693,
-    "recall": 0.675,
-    "f1": 0.5869565217391305,
-    "roc_auc": 0.5362951807228915
+    "accuracy": 0.543859649122807,
+    "precision": 0.5315315315315315,
+    "recall": 0.6941176470588235,
+    "f1": 0.6020408163265306,
+    "roc_auc": 0.5447332421340629
   },
   "training_seed": 42,
   "dataset_size": {
-    "train": 651,
-    "test": 163,
-    "total": 814
+    "train": 684,
+    "test": 171,
+    "total": 855
   },
   "notes": "6 models compared (LogReg, RandomForest, GradientBoosting, LightGBM, XGBoost, SVM). MLP was dropped earlier because tf.keras.fit() hung on this conda env. Trained on the production Hetzner dataset."
 }

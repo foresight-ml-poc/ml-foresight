@@ -10,25 +10,31 @@ Foresight émet des signaux notés 0–100 par une formule fixe. Sur 2 mois de p
 
 **Tâche** : classification binaire — étant donné un signal qui vient d'être émis, prédire si le marché va effectivement bouger dans la direction prédite à T+24h (`direction_correct`).
 
-## Résultats (v1.3.0 — données prod au 2026-05-18)
+## Résultats (v1.4.0 — données prod au 2026-05-19)
 
-814 signaux exploitables (2026-04-12 → 2026-05-17), split 80/20, **test set N=163**. 6 modèles ML comparés + heuristique baseline. Données extraites de la prod Hetzner.
+855 signaux exploitables (35 jours de prod Hetzner), split 80/20, **test set N=171**. 6 modèles ML comparés + heuristique baseline. Export enrichi (39 colonnes : trajectoire de prix complète, microstructure marché) pour l'analyse, mais le ML reste sur un **allowlist strict de 19 features** (anti-leak).
 
 ![ML vs Heuristique](plots/ml_vs_heuristic.png)
 
 | Modèle | Accuracy | F1 | ROC-AUC |
 |---|---|---|---|
-| Heuristique Foresight | 0.534 | 0.587 | 0.536 |
-| **Gradient Boosting** ★ | 0.540 | 0.528 | **0.540** |
-| XGBoost | 0.528 | 0.565 | 0.529 |
-| Random Forest | 0.515 | 0.527 | 0.516 |
-| LightGBM | 0.503 | 0.515 | 0.504 |
-| Logistic Regression | 0.497 | 0.453 | 0.496 |
-| SVM (RBF) | 0.454 | 0.433 | 0.453 |
+| Heuristique Foresight | 0.544 | 0.602 | 0.545 |
+| **Random Forest** ★ | 0.573 | 0.568 | **0.573** |
+| XGBoost | 0.538 | 0.573 | 0.539 |
+| LightGBM | 0.532 | 0.556 | 0.532 |
+| Gradient Boosting | 0.509 | 0.553 | 0.509 |
+| SVM (RBF) | 0.503 | 0.525 | 0.503 |
+| Logistic Regression | 0.497 | 0.488 | 0.497 |
 
-**Le finding important — et honnête.** En v1.2.0 (411 samples, test N=78) le GBM battait l'heuristique de **+3.7 pts ROC-AUC**. En re-entraînant sur **2× plus de données** (814 samples, test N=163), cet écart s'effondre à **+0.3 pts** (0.540 vs 0.536) — soit une **quasi-égalité**.
+**Les deux findings honnêtes :**
 
-C'est la leçon centrale du projet : le "+3.7 pts" de v1.2.0 était en grande partie du **bruit lié à la petite taille du test set**. Avec un test set 2× plus grand, l'estimation est plus fiable et le ML ne bat plus clairement l'heuristique. C'est moins flatteur mais beaucoup plus crédible scientifiquement — et ça illustre exactement pourquoi la taille du test set compte.
+1. **L'écart reste modeste.** Le best model bat l'heuristique de **+2.8 pts ROC-AUC** (0.573 vs 0.545). En v1.2.0 (test N=78) c'était +3.7 pts, en v1.3.0 (test N=163) +0.3 pts. Le ML égale l'heuristique sans la dominer franchement.
+
+2. **Le best model change selon le refresh** (GBM en v1.2/v1.3 → Random Forest en v1.4). Quand le signal est aussi faible, le classement des modèles est instable d'un dataset à l'autre. C'est en soi une leçon : ne pas sur-interpréter "tel modèle est le meilleur" sur un signal proche du hasard.
+
+Le winrate global des signaux est de **49.9 %** (proche du hasard) — prédire la direction d'un marché quasi-efficient à 24h est intrinsèquement dur. Le projet a sa vraie valeur dans la **démarche** : pipeline reproductible, anti-leak par allowlist, honnêteté sur l'instabilité.
+
+![ROC curves](plots/roc_curves_comparison.png)
 
 ![ROC curves](plots/roc_curves_comparison.png)
 

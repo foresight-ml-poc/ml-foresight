@@ -53,18 +53,17 @@ SELECT
     s.market_price_at_signal,
     s.source_tier_mix,
     s.cosine_score,
-    -- LLM features (always populated for all 401 analyzed signals)
+    -- ML features: LLM analysis (always populated for analyzed signals)
     ema.impact_strength,
     ema.llm_confidence,
     ema.ambiguity_score,
     ema.specificity_score,
-    -- Event context
+    -- ML features: event context
     e.bucket,
     e.articles_count,
     e.unique_sources_count,
-    -- Outcome (training label source)
+    -- Label source
     so.move_t24h_pct,
-    -- Computed label: direction-correctness at T+24h
     CASE
         WHEN s.direction IN ('BUY_YES', 'YES', 'UP')
             THEN (so.move_t24h_pct > 0)::int
@@ -72,9 +71,35 @@ SELECT
             THEN (so.move_t24h_pct < 0)::int
         ELSE NULL
     END AS direction_correct,
-    -- Heuristic baseline (used by train.py for vs-heuristic comparison,
-    -- NEVER fed to ML as a feature — anti-leak).
-    s.signal_score AS heuristic_score
+    -- Heuristic baseline (compare.py only — NEVER an ML feature)
+    s.signal_score    AS heuristic_score,
+    -- ── Analysis-only columns (rich Streamlit EDA, NEVER ML features) ──
+    s.signal_strength AS heuristic_strength,
+    s.trade_quality   AS heuristic_trade_quality,
+    s.confidence_label,
+    s.urgency_label,
+    s.tradability_label,
+    s.window_estimate,
+    -- Full price trajectory (the signal's life over 24h)
+    so.price_t5min,
+    so.price_t15min,
+    so.price_t1h,
+    so.price_t24h,
+    so.price_resolved,
+    so.move_t5min_pct,
+    so.move_t15min_pct,
+    so.move_t1h_pct,
+    so.outcome_label,
+    -- Market microstructure (current state, analysis only)
+    m.question        AS market_question,
+    m.category        AS market_category,
+    m.volume          AS market_volume,
+    m.liquidity       AS market_liquidity,
+    m.spread          AS market_spread,
+    m.end_date        AS market_end_date,
+    -- Event metadata
+    e.event_title,
+    e.event_type
 FROM signals s
 JOIN signal_outcomes so
     ON so.signal_id = s.id
@@ -82,6 +107,8 @@ JOIN event_market_analysis ema
     ON ema.event_id = s.event_id AND ema.market_id = s.market_id
 JOIN events e
     ON e.id = s.event_id
+LEFT JOIN markets m
+    ON m.market_id = s.market_id
 WHERE so.move_t24h_pct IS NOT NULL
   AND s.direction IN ('BUY_YES', 'BUY_NO', 'YES', 'NO', 'UP', 'DOWN')
   AND ema.impact_strength IS NOT NULL

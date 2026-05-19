@@ -19,18 +19,22 @@ L'audit interne montre un winrate de 46–48 % à T+24h. L'heuristique a atteint
 
 ## Données
 
-411 signaux historiques exportés de la DB Foresight (PostgreSQL), du 2026-04-12 au 2026-05-04.
+889 signaux historiques exportés de la **prod Hetzner** (via Tailscale), du 2026-04-12 au 2026-05-19 (35 jours). Après cleaning : 855 exploitables.
 
-**Label** : `direction_correct` à T+24h, calculé depuis `move_t24h_pct` + `direction` (la colonne native dans la DB est cassée — seulement 30/438 lignes remplies, j'ai écrit le calcul moi-même dans le SQL d'export).
+**Label** : `direction_correct` à T+24h, calculé depuis `move_t24h_pct` + `direction` (la colonne native dans la DB est cassée — ~30/438 lignes remplies, j'ai écrit le calcul moi-même dans le SQL d'export).
 
-**Distribution des classes** : 216 losses / 195 wins (52.6 % / 47.4 %), quasi-équilibré.
+**Distribution des classes** : 431 losses / 424 wins (~50/50), quasi-équilibré. Winrate global 49.9 %.
 
-**Split** : 80 / 20 stratifié sur le label, `random_state=42`. → 328 train, 83 test.
+**Split** : 80 / 20 stratifié sur le label, `random_state=42`. → 684 train, 171 test.
 
-### Anti-leak
+**Export enrichi** : 39 colonnes (trajectoire de prix T+5m→T+24h, microstructure marché, internals heuristiques) pour alimenter le dashboard d'analyse — mais le ML n'en consomme que 19 (voir anti-leak).
 
-- Pas de feature dérivée du futur (`move_t24h_pct`, `outcome_label`, etc.)
-- Pas de feature dérivée de l'heuristique elle-même (`signal_score`, `signal_strength`, `trade_quality`)
+### Anti-leak — allowlist explicite
+
+Le feature engineering utilise un **allowlist** (`FEATURE_BASE_COLUMNS` dans `src/config.py`), pas un denylist. X = uniquement les 19 features autorisées + les one-hot `bucket_*`. Toute autre colonne du CSV enrichi (prix futurs, outcome, internals heuristiques, free-text) n'est jamais sélectionnée — impossible de leaker même en enrichissant l'export.
+
+- Aucune feature dérivée du futur (`move_*`, `price_t*`, `outcome_label`)
+- Aucune feature dérivée de l'heuristique (`signal_score`, `signal_strength`, `trade_quality`)
 - StandardScaler fit sur train uniquement
 
 ### Pourquoi la v1.0.0 était capée à 40 samples
@@ -41,12 +45,12 @@ En v1.1.0, j'ai abandonné cet objectif. Le ML utilise les features dispo pour l
 
 ## Feature engineering
 
-~17 features finales :
+19 features finales (allowlist strict) :
 
 - 4 features LLM (depuis `event_market_analysis`) : `impact_strength`, `llm_confidence`, `ambiguity_score`, `specificity_score`
-- 5 signal-time : `cosine_score`, `is_buy_yes`, `market_price_centered`, `hour_of_day`, `tier_1/2/3_count` (extraits du JSONB `source_tier_mix`)
+- 6 signal-time : `cosine_score`, `is_buy_yes`, `market_price_centered`, `hour_of_day`, `tier_1/2/3_count` (extraits du JSONB `source_tier_mix`)
 - 2 contexte event : `articles_count`, `unique_sources_count`
-- One-hot du `bucket` (~6 catégories)
+- One-hot du `bucket` (~6 catégories → bucket_economics/geopolitics/other/politics/science/sports)
 
 ## Modèles
 
@@ -61,47 +65,66 @@ En v1.1.0, j'ai abandonné cet objectif. Le ML utilise les features dispo pour l
 
 > Le 3e modèle prévu initialement était un MLP Keras. `tf.keras.fit()` se bloquait indéfiniment sur cet env (Apple Silicon, TF 2.21). Bypass plutôt que diagnostic — substitué par GradientBoosting, puis on a ajouté LightGBM/XGBoost/SVM pour une comparaison robuste.
 
-## Résultats — v1.3.0 (données prod au 2026-05-18, test N=163)
+## Résultats — v1.4.0 (données prod au 2026-05-19, test N=171)
 
-| Modèle | Accuracy | Precision | Recall | F1 | ROC-AUC |
-|---|---|---|---|---|---|
-| Heuristique | 0.534 | 0.519 | 0.675 | 0.587 | 0.536 |
-| **Gradient Boosting** ★ | 0.540 | 0.532 | 0.525 | 0.528 | **0.540** |
-| XGBoost | 0.528 | 0.515 | 0.625 | 0.565 | 0.529 |
-| Random Forest | 0.515 | 0.506 | 0.550 | 0.527 | 0.516 |
-| LightGBM | 0.503 | 0.494 | 0.538 | 0.515 | 0.504 |
-| Logistic Regression | 0.497 | 0.486 | 0.425 | 0.453 | 0.496 |
-| SVM (RBF) | 0.454 | 0.442 | 0.425 | 0.433 | 0.453 |
+855 signaux exploitables, 35 jours de prod. Export enrichi (39 colonnes pour
+l'analyse) mais ML sur un **allowlist strict de 19 features** (anti-leak).
 
-### Le finding central — et la vraie leçon du projet
+| Modèle | Accuracy | F1 | ROC-AUC |
+|---|---|---|---|
+| Heuristique | 0.544 | 0.602 | 0.545 |
+| **Random Forest** ★ | 0.573 | 0.568 | **0.573** |
+| XGBoost | 0.538 | 0.573 | 0.539 |
+| LightGBM | 0.532 | 0.556 | 0.532 |
+| Gradient Boosting | 0.509 | 0.553 | 0.509 |
+| SVM (RBF) | 0.503 | 0.525 | 0.503 |
+| Logistic Regression | 0.497 | 0.488 | 0.497 |
 
-En **v1.2.0** (411 samples, test N=78), le GBM battait l'heuristique de **+3.7 pts ROC-AUC** (0.570 vs 0.533). J'ai trouvé ça encourageant.
+### Les deux findings honnêtes — la vraie leçon du projet
 
-En **v1.3.0**, j'ai ré-entraîné sur la prod Hetzner qui avait accumulé **2× plus de données** (814 samples, test N=163). Résultat : le GBM ne bat plus l'heuristique que de **+0.3 pts** (0.540 vs 0.536) — une **quasi-égalité statistique**.
+**Finding 1 — l'écart ML/heuristique est modeste et bruité.** Selon le refresh :
 
-**Conclusion honnête : le "+3.7 pts" était essentiellement du bruit dû au petit test set (N=78).** Avec un test set 2× plus grand, l'estimateur converge et l'avantage disparaît. C'est exactement l'illustration de pourquoi on ne fait pas confiance à des métriques sur un petit échantillon — et c'est plus précieux pour un jury qu'un faux résultat flatteur.
+| Version | Dataset | Test | Best model | Écart vs heuristique |
+|---|---|---|---|---|
+| v1.2.0 | 411 | N=78 | GradientBoosting | +3.7 pts |
+| v1.3.0 | 814 | N=163 | GradientBoosting | +0.3 pts |
+| v1.4.0 | 855 | N=171 | **Random Forest** | +2.8 pts |
+
+Le "+3.7 pts" de v1.2.0 était surtout du bruit (petit test set). Avec plus
+de données l'écart oscille entre 0 et 3 pts. Le ML égale l'heuristique sans
+la dominer franchement.
+
+**Finding 2 — le best model est instable.** GradientBoosting gagnait en
+v1.2/v1.3, Random Forest gagne en v1.4 sur quasiment les mêmes données. Quand
+le signal est aussi faible (toutes les ROC-AUC entre 0.50 et 0.57), le
+classement des modèles change d'un dataset à l'autre. Conclusion : ne pas
+sur-interpréter "tel modèle est le meilleur" près du hasard. C'est une leçon
+ML aussi importante que les chiffres eux-mêmes.
 
 Ce qui reste vrai :
-- Les modèles d'arbres (GBM, XGBoost, RF) sont au coude-à-coude avec l'heuristique (~0.52-0.54)
-- LogReg et SVM sont sous l'heuristique → la relation est non-linéaire mais le signal est faible
-- L'heuristique de Foresight, pensée par des humains, est **étonnamment dure à battre**
+- Les modèles d'arbres (RF, XGBoost, LightGBM) sont au coude-à-coude avec
+  l'heuristique (~0.53-0.57)
+- LogReg et SVM sont sous l'heuristique → relation non-linéaire, signal faible
+- L'heuristique de Foresight, pensée par des humains, est **dure à battre**
+- Le winrate global est de **49.9 %** : prédire un marché quasi-efficient à
+  T+24h est intrinsèquement difficile
 
-Trade-off : l'heuristique garde un recall élevé (0.675) mais une precision moyenne (0.519). Le GBM équilibre mieux (precision 0.532, recall 0.525). Pour un trader qui veut limiter les faux positifs, le GBM reste légèrement préférable malgré la ROC-AUC quasi identique.
+Trade-off : l'heuristique garde un recall élevé (0.694) mais une precision moyenne (0.532). Le Random Forest équilibre mieux. Pour un trader qui veut limiter les faux positifs, le RF est légèrement préférable.
 
-Plots dans [`../plots/`](../plots/).
+Plots dans [`../plots/`](../plots/) — et dashboard Streamlit interactif (`make app`).
 
 ## Limitations
 
-1. **Le signal est faible.** Toutes les ROC-AUC sont entre 0.45 et 0.54 — proche du hasard. Soit les features disponibles ne capturent pas assez d'information, soit prédire `direction_correct` à T+24h est intrinsèquement très dur (marchés quasi-efficients).
-2. **814 samples reste modeste** pour un signal aussi faible. Il faudrait peut-être 5000+ samples pour distinguer proprement les modèles.
-3. **26 jours de couverture, split aléatoire.** Un `TimeSeriesSplit` serait méthodologiquement plus correct pour des données financières.
+1. **Le signal est faible.** Toutes les ROC-AUC sont entre 0.50 et 0.57 — proche du hasard. Soit les features disponibles ne capturent pas assez d'information, soit prédire `direction_correct` à T+24h est intrinsèquement très dur (marchés quasi-efficients).
+2. **855 samples reste modeste** pour un signal aussi faible. Il faudrait peut-être 5000+ samples pour distinguer proprement les modèles (et stabiliser le best model).
+3. **35 jours de couverture, split aléatoire.** Un `TimeSeriesSplit` serait méthodologiquement plus correct pour des données financières.
 4. **Bug `direction_correct` dans Foresight.** Label calculé manuellement depuis `move_t24h_pct` — à fixer en amont.
 
 ## Conclusion
 
-Le pipeline ML marche end-to-end : export Foresight (prod Hetzner) → cleaning → feature engineering → 6 modèles → évaluation → dashboard Streamlit, le tout scalable automatiquement avec le volume.
+Le pipeline ML marche end-to-end : export Foresight (prod Hetzner) → cleaning → feature engineering → 6 modèles → évaluation → dashboard Streamlit riche (winrate par bucket/direction, calibration, trajectoire de prix), le tout scalable automatiquement avec le volume.
 
-Le résultat final est **honnête et nuancé** : sur 814 samples, aucun modèle ML ne bat clairement l'heuristique de Foresight (GBM +0.3 pts ROC-AUC, dans le bruit). Le projet a sa vraie valeur dans la **démarche** : avoir détecté que le résultat prometteur de v1.2.0 (+3.7 pts) était un artefact du petit test set, et l'avoir corrigé en ré-entraînant sur plus de données dès qu'elles étaient disponibles. C'est ça, faire du ML rigoureux.
+Le résultat final est **honnête et nuancé** : sur 855 samples, le ML (RandomForest) bat l'heuristique de +2.8 pts ROC-AUC, mais l'écart oscille entre 0 et 3.7 pts selon le refresh et le best model change (GBM→RF). Le projet a sa vraie valeur dans la **démarche** : pipeline reproductible, anti-leak par allowlist explicite, et honnêteté sur l'instabilité du signal. C'est ça, faire du ML rigoureux.
 
 **Suite** :
 1. Le signal est faible — soit enrichir les features (ajouter du contexte marché, historique du trader), soit accepter que prédire un marché quasi-efficient à 24h est intrinsèquement dur.
@@ -111,6 +134,6 @@ Le résultat final est **honnête et nuancé** : sur 814 samples, aucun modèle 
 ## Annexes
 
 - Repo : <https://github.com/foresight-ml-poc/ml-foresight>
-- Release v1.3.0 : <https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.3.0>
+- Release v1.4.0 : <https://github.com/foresight-ml-poc/ml-foresight/releases/tag/v1.4.0>
 - Foresight (privé) : <https://github.com/vcapton-jpg/polymarket-ai>
 - Référence pédagogique : <https://github.com/basile-desjuzeur/ml-poc-project>

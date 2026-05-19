@@ -48,17 +48,40 @@ SEED = 42
 TARGET_COLUMN = "direction_correct"
 HEURISTIC_THRESHOLD = 65  # signal_score > 65 → label heuristique = 1
 
-# Anti-leak: features that must NEVER be used as inputs
+# --- Anti-leak: EXPLICIT FEATURE ALLOWLIST ---
+#
+# We use an allowlist (not a denylist) so that enriching the export CSV with
+# analysis columns (price trajectory, market microstructure, heuristic
+# internals, ...) can NEVER leak into X. Only columns listed here — plus the
+# one-hot `bucket_*` columns generated at runtime — become model features.
+#
+# Anything not in this list (labels, future-derived outcomes, heuristic
+# outputs, free-text, ids, timestamps) is simply never selected.
+FEATURE_BASE_COLUMNS = [
+    # Raw numeric, available at signal-emission time
+    "cosine_score",
+    "impact_strength",
+    "llm_confidence",
+    "ambiguity_score",
+    "specificity_score",
+    "articles_count",
+    "unique_sources_count",
+    # Derived in _feature_engineer()
+    "tier_1_count",
+    "tier_2_count",
+    "tier_3_count",
+    "is_buy_yes",
+    "market_price_centered",
+    "hour_of_day",
+    # + one-hot `bucket_*` columns added dynamically
+]
+
+# Kept for backwards reference / documentation of what would leak.
 EXCLUDED_FROM_FEATURES = [
-    # Future-derived (would leak)
-    "move_t24h_pct",
-    "price_t24h",
-    "outcome_label",
-    "price_resolved",
-    # Heuristic-derived (would copy what we want to replace)
-    "signal_score",
-    "signal_strength",
-    "trade_quality",
+    "move_t24h_pct", "move_t5min_pct", "move_t15min_pct", "move_t1h_pct",
+    "price_t5min", "price_t15min", "price_t1h", "price_t24h", "price_resolved",
+    "outcome_label", "signal_score", "heuristic_score", "heuristic_strength",
+    "heuristic_trade_quality", "signal_strength", "trade_quality",
 ]
 
 # Registry of trained models — populated by scripts/train.py
